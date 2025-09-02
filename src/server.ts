@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import pino from 'pino';
 import { z } from 'zod';
-import { withClient } from './db';
+import { withClient } from './db.js';
  
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
