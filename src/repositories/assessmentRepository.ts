@@ -1,0 +1,3 @@
+import { withClient } from '../db.js';
+export async function insertAssessment(d:any){ await withClient(c=>c.query('insert into avaliacoes (codigo, curso_id, titulo, tempo_limite, tentativas_permitidas, nota_minima, ativo) values ($1,$2,$3,$4,$5,$6,true)', [d.codigo,d.curso_id,d.titulo,d.tempo_limite||null,d.tentativas_permitidas||null,d.nota_minima||null])); }
+export async function findByCodigo(codigo:string){ return withClient(async c=>{ const r = await c.query('select codigo, curso_id, titulo, tempo_limite, tentativas_permitidas, nota_minima, ativo from avaliacoes where codigo=$1',[codigo]); return r.rows[0]; }); }
