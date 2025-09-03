@@ -2,8 +2,6 @@
   "openapi": "3.0.3",
   "info": { "title": "Assessment Service API", "version": "1.0.0" },
   "paths": {
-    "/health/live": { "get": { "summary": "Liveness", "responses": { "200": { "description": "OK" } } } },
-    "/health/ready": { "get": { "summary": "Readiness", "responses": { "200": { "description": "OK" } } } },
     "/assessments/v1": { "post": { "summary": "Criar avaliação", "tags": ["assessments"], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["codigo", "curso_id", "titulo"], "properties": { "codigo": { "type": "string" }, "curso_id": { "type": "string" }, "titulo": { "type": "string" }, "tempo_limite": { "type": "integer" }, "tentativas_permitidas": { "type": "integer" }, "nota_minima": { "type": "number" } } } } } }, "responses": { "201": { "description": "Criado" }, "409": { "description": "Duplicado" } } } },
     "/assessments/v1/{codigo}": { "get": { "summary": "Obter avaliação", "tags": ["assessments"], "parameters": [{ "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" }, "404": { "description": "Não encontrado" } } } }
   }
