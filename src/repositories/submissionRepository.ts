@@ -9,13 +9,11 @@ export interface StartedAttempt { id:string; assessment_codigo:string; user_id:s
 const TABLE_TENTATIVAS = 'assessment_service.tentativas';
 const TABLE_RESPOSTAS = 'assessment_service.respostas';
 
-export async function startAttempt(assessmentCodigo:string, userId:string, tempoLimiteMinutos?:number|null): Promise<StartedAttempt>{
+export async function startAttempt(assessmentCodigo:string, userId:string, tempoLimiteMinutos?:number|null, initialStatus:'EM_ANDAMENTO'|'EM_ANDAMENTO_RECUPERACAO'='EM_ANDAMENTO'): Promise<StartedAttempt>{
   return withClient(async c=>{
-    const r = await c.query(`insert into ${TABLE_TENTATIVAS}(funcionario_id, avaliacao_id) values ($1,$2) returning id, avaliacao_id, funcionario_id, data_inicio`,[userId, assessmentCodigo]);
+    const r = await c.query(`insert into ${TABLE_TENTATIVAS}(funcionario_id, avaliacao_id, status) values ($1,$2,$3) returning id, avaliacao_id, funcionario_id, data_inicio`,[userId, assessmentCodigo, initialStatus]);
     let deadline:Date|null = null;
-    if(tempoLimiteMinutos && tempoLimiteMinutos>0){
-      deadline = new Date(Date.now() + tempoLimiteMinutos*60000);
-    }
+    if(tempoLimiteMinutos && tempoLimiteMinutos>0){ deadline = new Date(Date.now() + tempoLimiteMinutos*60000); }
     return { id:r.rows[0].id, assessment_codigo:r.rows[0].avaliacao_id, user_id:r.rows[0].funcionario_id, data_inicio:r.rows[0].data_inicio, deadline };
   });
 }
@@ -75,5 +73,13 @@ export async function listSubmissions(assessmentCodigo:string, userId:string){
       status:r.status,
       data_fim:r.data_fim
     }));
+  });
+}
+
+export interface AttemptSummary { id:string; status:string; nota:number|null; isRecovery:boolean }
+export async function listAttemptsForUser(assessmentCodigo:string, userId:string): Promise<AttemptSummary[]>{
+  return withClient(async c=>{
+    const r = await c.query(`select id, status, nota_obtida, data_inicio from ${TABLE_TENTATIVAS} where avaliacao_id=$1 and funcionario_id=$2 order by data_inicio asc`,[assessmentCodigo,userId]);
+    return r.rows.map(row=>({ id:row.id, status:row.status, nota: row.nota_obtida !== null ? Number(row.nota_obtida) : null, isRecovery: row.status.startsWith('EM_ANDAMENTO_RECUPERACAO') || row.status.includes('RECUPERACAO') }));
   });
 }
