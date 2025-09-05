@@ -4,9 +4,27 @@ import { withClient } from '../db.js';
 export interface SubmissionAnswerInput { questao_id:string; resposta:string }
 export interface CreateSubmissionInput { assessment_codigo:string; user_id:string; respostas: SubmissionAnswerInput[] }
 export interface StoredSubmission { id:string; assessment_codigo:string; user_id:string; nota:number; aprovado:boolean; data_fim:Date }
+export interface StartedAttempt { id:string; assessment_codigo:string; user_id:string; data_inicio:Date; deadline?:Date|null }
 
 const TABLE_TENTATIVAS = 'assessment_service.tentativas';
 const TABLE_RESPOSTAS = 'assessment_service.respostas';
+
+export async function startAttempt(assessmentCodigo:string, userId:string, tempoLimiteMinutos?:number|null): Promise<StartedAttempt>{
+  return withClient(async c=>{
+    const r = await c.query(`insert into ${TABLE_TENTATIVAS}(funcionario_id, avaliacao_id) values ($1,$2) returning id, avaliacao_id, funcionario_id, data_inicio`,[userId, assessmentCodigo]);
+    let deadline:Date|null = null;
+    if(tempoLimiteMinutos && tempoLimiteMinutos>0){
+      deadline = new Date(Date.now() + tempoLimiteMinutos*60000);
+    }
+    return { id:r.rows[0].id, assessment_codigo:r.rows[0].avaliacao_id, user_id:r.rows[0].funcionario_id, data_inicio:r.rows[0].data_inicio, deadline };
+  });
+}
+
+export async function finalizeAttempt(attemptId:string, nota:number|null, status:string){
+  return withClient(async c=>{
+    await c.query(`update ${TABLE_TENTATIVAS} set data_fim=now(), nota_obtida=$2, status=$3 where id=$1`,[attemptId, nota, status]);
+  });
+}
 
 export async function createSubmission(data:CreateSubmissionInput, nota:number, aprovado:boolean): Promise<StoredSubmission>{
   return withClient(async c => {

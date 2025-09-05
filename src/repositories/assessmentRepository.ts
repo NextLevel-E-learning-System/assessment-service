@@ -5,8 +5,8 @@ export interface NewAssessment { codigo:string; curso_id:string; titulo:string; 
 export interface Assessment extends NewAssessment { ativo:boolean }
 
 // No schema real não existe "ordem" nem tabela de alternativas; as opções ficam em opcoes_resposta[] e a correta em resposta_correta.
-export interface NewQuestion { assessment_codigo:string; enunciado:string; tipo:'MULTIPLA_ESCOLHA'|'VERDADEIRO_FALSO'; opcoes_resposta?:string[]; resposta_correta?:string; peso?:number|null }
-export interface Question { id:string; assessment_codigo:string; enunciado:string; tipo:'MULTIPLA_ESCOLHA'|'VERDADEIRO_FALSO'; opcoes_resposta:string[]; resposta_correta:string|null; peso:number }
+export interface NewQuestion { assessment_codigo:string; enunciado:string; tipo:'MULTIPLA_ESCOLHA'|'VERDADEIRO_FALSO'|'DISSERTATIVA'; opcoes_resposta?:string[]; resposta_correta?:string; peso?:number|null }
+export interface Question { id:string; assessment_codigo:string; enunciado:string; tipo:'MULTIPLA_ESCOLHA'|'VERDADEIRO_FALSO'|'DISSERTATIVA'; opcoes_resposta:string[]; resposta_correta:string|null; peso:number }
 
 // Interfaces de "Alternative" continuam para compatibilidade de API existente, porém são derivadas de opcoes_resposta
 export interface NewAlternative { questao_id:string; texto:string; correta:boolean }
@@ -33,7 +33,7 @@ export async function findByCodigo(codigo:string): Promise<Assessment | null>{
 
 export async function insertQuestion(q:NewQuestion): Promise<string>{
 	// Para VERDADEIRO_FALSO, se não vier opcoes_resposta, usamos padrão ['VERDADEIRO','FALSO']
-	const opcoes = q.opcoes_resposta && q.opcoes_resposta.length>0 ? q.opcoes_resposta : (q.tipo==='VERDADEIRO_FALSO'? ['VERDADEIRO','FALSO'] : []);
+		const opcoes = q.opcoes_resposta && q.opcoes_resposta.length>0 ? q.opcoes_resposta : (q.tipo==='VERDADEIRO_FALSO'? ['VERDADEIRO','FALSO'] : (q.tipo==='MULTIPLA_ESCOLHA'? [] : []));
 	return withClient(async c=>{
 		const r = await c.query(
 			`insert into ${TABLE_QUESTOES} (avaliacao_id, tipo_questao, enunciado, opcoes_resposta, resposta_correta, peso)

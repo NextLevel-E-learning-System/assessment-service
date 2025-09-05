@@ -12,6 +12,7 @@ export async function gradeSubmission(input:GradeInput){
   const respostasMap = new Map(input.respostas.map(r=>[r.questao_id, r.resposta]));
   let totalPeso = 0;
   let pontosObtidos = 0;
+  let temDissertativa = false;
   for(const q of questoes){
     const peso = q.peso || 1;
     totalPeso += peso;
@@ -21,12 +22,14 @@ export async function gradeSubmission(input:GradeInput){
       if(q.resposta_correta && resp === q.resposta_correta){
         pontosObtidos += peso;
       }
+    } else if(q.tipo === 'DISSERTATIVA') {
+      temDissertativa = true; // aguardará revisão manual; não soma automaticamente
     }
   }
   const notaPerc = totalPeso>0 ? (pontosObtidos/totalPeso)*100 : 0;
   const nota = Math.round(notaPerc*100)/100; // duas casas se precisar
   const notaMin = assessment.nota_minima ? Number(assessment.nota_minima) : 0;
-  const aprovado = nota >= notaMin;
+  const aprovado = !temDissertativa && nota >= notaMin; // se tiver dissertativa, aprovação depende de revisão
   // Persiste tentativa / respostas
   await createSubmission({ assessment_codigo: assessment.codigo, user_id: input.userId, respostas: input.respostas }, nota, aprovado);
   const payload = { assessmentCode: assessment.codigo, courseId: assessment.curso_id, userId: input.userId, score: nota, passed: aprovado };
