@@ -26,6 +26,21 @@ export async function finalizeAttempt(attemptId:string, nota:number|null, status
   });
 }
 
+export async function getAttempt(attemptId:string){
+  return withClient(async c=>{
+    const r = await c.query(`select id, funcionario_id, avaliacao_id, data_inicio, data_fim, nota_obtida, status from ${TABLE_TENTATIVAS} where id=$1`,[attemptId]);
+    return r.rows[0]||null;
+  });
+}
+
+export async function saveAnswers(attemptId:string, answers:SubmissionAnswerInput[]){
+  return withClient(async c=>{
+    for(const r of answers){
+      await c.query(`insert into ${TABLE_RESPOSTAS}(tentativa_id, questao_id, resposta_funcionario) values ($1,$2,$3) on conflict (tentativa_id, questao_id) do update set resposta_funcionario=excluded.resposta_funcionario`, [attemptId, r.questao_id, r.resposta]);
+    }
+  });
+}
+
 export async function createSubmission(data:CreateSubmissionInput, nota:number, aprovado:boolean): Promise<StoredSubmission>{
   return withClient(async c => {
     // cria tentativa em andamento
