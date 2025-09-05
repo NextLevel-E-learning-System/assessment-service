@@ -1,17 +1,34 @@
-import { findByCodigo } from '../repositories/assessmentRepository.js';
+import { findByCodigo, listQuestions } from '../repositories/assessmentRepository.js';
 import { publishEvent } from '../events/publisher.js';
-import { withClient } from '../db.js';
+import { createSubmission, SubmissionAnswerInput } from '../repositories/submissionRepository.js';
 
-type Resposta = Record<string, unknown>;
-interface GradeInput { codigo:string; userId:string; respostas:Resposta[] }
+interface GradeInput { codigo:string; userId:string; respostas:SubmissionAnswerInput[] }
 
 export async function gradeSubmission(input:GradeInput){
   const assessment = await findByCodigo(input.codigo);
   if(!assessment) throw new Error('assessment_not_found');
-  const nota = input.respostas && input.respostas.length>0 ? 100 : 0; // mock
-  const notaMin = assessment.nota_minima ?? 0;
+  const questoes = await listQuestions(input.codigo);
+  // Mapa de respostas enviadas
+  const respostasMap = new Map(input.respostas.map(r=>[r.questao_id, r.resposta]));
+  let totalPeso = 0;
+  let pontosObtidos = 0;
+  for(const q of questoes){
+    const peso = q.peso || 1;
+    totalPeso += peso;
+    const resp = respostasMap.get(q.id);
+    if(!resp) continue;
+    if(q.tipo === 'VERDADEIRO_FALSO' || q.tipo === 'MULTIPLA_ESCOLHA'){
+      if(q.resposta_correta && resp === q.resposta_correta){
+        pontosObtidos += peso;
+      }
+    }
+  }
+  const notaPerc = totalPeso>0 ? (pontosObtidos/totalPeso)*100 : 0;
+  const nota = Math.round(notaPerc*100)/100; // duas casas se precisar
+  const notaMin = assessment.nota_minima ? Number(assessment.nota_minima) : 0;
   const aprovado = nota >= notaMin;
-  await withClient(c => c.query('insert into avaliacoes_submissoes(id, avaliacao_codigo, funcionario_id, nota, aprovado) values (gen_random_uuid(), $1,$2,$3,$4)',[assessment.codigo, input.userId, nota, aprovado]));
+  // Persiste tentativa / respostas
+  await createSubmission({ assessment_codigo: assessment.codigo, user_id: input.userId, respostas: input.respostas }, nota, aprovado);
   const payload = { assessmentCode: assessment.codigo, courseId: assessment.curso_id, userId: input.userId, score: nota, passed: aprovado };
   await publishEvent(aprovado ? 'assessment.passed.v1' : 'assessment.failed.v1', payload);
   return { aprovado, nota };
