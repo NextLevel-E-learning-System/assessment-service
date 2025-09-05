@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { createAssessmentHandler, getAssessmentHandler, addQuestionHandler, listQuestionsHandler, addAlternativeHandler, listAlternativesHandler } from '../controllers/assessmentController.js';
 import { submitAssessmentHandler } from '../controllers/submitController.js';
 import { startAttemptHandler } from '../controllers/attemptController.js';
+import { listDissertativeHandler, reviewAttemptHandler } from '../controllers/reviewController.js';
 export const assessmentRouter = Router();
 assessmentRouter.post('/', createAssessmentHandler);
 assessmentRouter.get('/:codigo', getAssessmentHandler);
@@ -11,3 +12,5 @@ assessmentRouter.post('/questions/:questaoId/alternatives', addAlternativeHandle
 assessmentRouter.get('/questions/:questaoId/alternatives', listAlternativesHandler);
 assessmentRouter.post('/:codigo/attempts/start', startAttemptHandler);
 assessmentRouter.post('/:codigo/submit', submitAssessmentHandler);
+assessmentRouter.get('/attempts/:attemptId/dissertative', listDissertativeHandler);
+assessmentRouter.patch('/attempts/:attemptId/review', reviewAttemptHandler);
