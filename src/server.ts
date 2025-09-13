@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import swaggerUi from 'swagger-ui-express';
 import { loadOpenApi } from './config/openapi.js';
 import { logger } from './config/logger.js';
 import { assessmentRouter } from './routes/assessmentRoutes.js';
@@ -12,7 +11,6 @@ export function createServer(){
   app.use((req,_res,next)=>{ (req as any).log = logger; next(); });
   const openapiSpec = loadOpenApi('Assessment Service API');
   app.get('/openapi.json', (_req, res) => res.json(openapiSpec));
-  app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec));
   app.use('/assessments/v1', assessmentRouter);
   app.use(errorHandler);
   return app;
