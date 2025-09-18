@@ -9,8 +9,14 @@ export function createServer(){
   app.use(express.json());
   app.use(cors({origin:'*'}));
   app.use((req,_res,next)=>{ (req as any).log = logger; next(); });
-  const openapiSpec = loadOpenApi('Assessment Service API');
-  app.get('/openapi.json', (_req, res) => res.json(openapiSpec));
+  app.get('/openapi.json', async (_req, res) => {
+    try {
+      const openapiSpec = await loadOpenApi('Assessment Service API');
+      res.json(openapiSpec);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to load OpenAPI spec' });
+    }
+  });
   app.use('/assessments/v1', assessmentRouter);
   app.use(errorHandler);
   return app;
