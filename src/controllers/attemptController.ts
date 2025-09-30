@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { startAttempt, listAttemptsForUser } from '../repositories/submissionRepository.js';
 import { findByCodigo } from '../repositories/assessmentRepository.js';
+import * as attemptRepository from '../repositories/attemptRepository.js';
 import { HttpError } from '../utils/httpError.js';
 
 export async function startAttemptHandler(req:Request,res:Response,next:NextFunction){
@@ -53,4 +54,191 @@ export async function startAttemptHandler(req:Request,res:Response,next:NextFunc
     const started = await startAttempt(assessment.codigo, userId, assessment.tempo_limite||null, isRecovery? 'EM_ANDAMENTO_RECUPERACAO':'EM_ANDAMENTO');
     res.status(201).json({ attemptId: started.id, assessment: assessment.codigo, startedAt: started.data_inicio, deadline: started.deadline, recovery:isRecovery });
   } catch(e){ next(e); }
+}
+
+// Novos handlers para CRUD completo de tentativas
+export async function createAttemptHandler(req: Request, res: Response) {
+  try {
+    const { funcionario_id, avaliacao_id, status } = req.body;
+    
+    if (!funcionario_id || !avaliacao_id) {
+      return res.status(400).json({ 
+        erro: 'dados_obrigatorios', 
+        mensagem: 'funcionario_id e avaliacao_id são obrigatórios' 
+      });
+    }
+
+    const attemptId = await attemptRepository.createAttempt({
+      funcionario_id,
+      avaliacao_id,
+      status
+    });
+
+    const attempt = await attemptRepository.findAttemptById(attemptId);
+
+    return res.status(201).json({
+      tentativa: attempt,
+      mensagem: 'Tentativa criada com sucesso'
+    });
+  } catch (error: unknown) {
+    console.error('Erro ao criar tentativa:', error);
+    return res.status(500).json({ 
+      erro: 'erro_interno', 
+      mensagem: 'Erro interno do servidor' 
+    });
+  }
+}
+
+export async function getAttemptHandler(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    
+    const attempt = await attemptRepository.findAttemptById(id);
+    
+    if (!attempt) {
+      return res.status(404).json({ 
+        erro: 'tentativa_nao_encontrada', 
+        mensagem: 'Tentativa não encontrada' 
+      });
+    }
+
+    return res.json({
+      tentativa: attempt,
+      mensagem: 'Tentativa encontrada'
+    });
+  } catch (error) {
+    console.error('Erro ao buscar tentativa:', error);
+    return res.status(500).json({ 
+      erro: 'erro_interno', 
+      mensagem: 'Erro interno do servidor' 
+    });
+  }
+}
+
+export async function listAttemptsByUserHandler(req: Request, res: Response) {
+  try {
+    const { funcionario_id } = req.params;
+    const { avaliacao_id } = req.query as { avaliacao_id?: string };
+    
+    const attempts = await attemptRepository.findAttemptsByUser(funcionario_id, avaliacao_id);
+    
+    return res.json({
+      tentativas: attempts,
+      total: attempts.length,
+      mensagem: 'Tentativas listadas com sucesso'
+    });
+  } catch (error) {
+    console.error('Erro ao listar tentativas do usuário:', error);
+    return res.status(500).json({ 
+      erro: 'erro_interno', 
+      mensagem: 'Erro interno do servidor' 
+    });
+  }
+}
+
+export async function listAttemptsByAssessmentHandler(req: Request, res: Response) {
+  try {
+    const { avaliacao_id } = req.params;
+    
+    const attempts = await attemptRepository.findAttemptsByAssessment(avaliacao_id);
+    
+    return res.json({
+      tentativas: attempts,
+      total: attempts.length,
+      mensagem: 'Tentativas da avaliação listadas com sucesso'
+    });
+  } catch (error) {
+    console.error('Erro ao listar tentativas da avaliação:', error);
+    return res.status(500).json({ 
+      erro: 'erro_interno', 
+      mensagem: 'Erro interno do servidor' 
+    });
+  }
+}
+
+export async function updateAttemptHandler(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    const updated = await attemptRepository.updateAttempt(id, updateData);
+    
+    if (!updated) {
+      return res.status(404).json({ 
+        erro: 'tentativa_nao_encontrada', 
+        mensagem: 'Tentativa não encontrada ou nenhum dado para atualizar' 
+      });
+    }
+
+    const attempt = await attemptRepository.findAttemptById(id);
+    
+    return res.json({
+      tentativa: attempt,
+      mensagem: 'Tentativa atualizada com sucesso'
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar tentativa:', error);
+    return res.status(500).json({ 
+      erro: 'erro_interno', 
+      mensagem: 'Erro interno do servidor' 
+    });
+  }
+}
+
+export async function deleteAttemptHandler(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    
+    const deleted = await attemptRepository.deleteAttempt(id);
+    
+    if (!deleted) {
+      return res.status(404).json({ 
+        erro: 'tentativa_nao_encontrada', 
+        mensagem: 'Tentativa não encontrada' 
+      });
+    }
+
+    return res.json({
+      mensagem: 'Tentativa deletada com sucesso'
+    });
+  } catch (error) {
+    console.error('Erro ao deletar tentativa:', error);
+    return res.status(500).json({ 
+      erro: 'erro_interno', 
+      mensagem: 'Erro interno do servidor' 
+    });
+  }
+}
+
+export async function finalizeAttemptHandler(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { nota_obtida, status } = req.body;
+    
+    const updated = await attemptRepository.updateAttempt(id, {
+      data_fim: new Date(),
+      nota_obtida,
+      status: status || 'FINALIZADA'
+    });
+    
+    if (!updated) {
+      return res.status(404).json({ 
+        erro: 'tentativa_nao_encontrada', 
+        mensagem: 'Tentativa não encontrada' 
+      });
+    }
+
+    const attempt = await attemptRepository.findAttemptById(id);
+    
+    return res.json({
+      tentativa: attempt,
+      mensagem: 'Tentativa finalizada com sucesso'
+    });
+  } catch (error) {
+    console.error('Erro ao finalizar tentativa:', error);
+    return res.status(500).json({ 
+      erro: 'erro_interno', 
+      mensagem: 'Erro interno do servidor' 
+    });
+  }
 }
