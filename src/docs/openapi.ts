@@ -2,8 +2,8 @@ export const openapiSpec = {
   "openapi": "3.0.3",
   "info": { 
     "title": "Assessment Service API", 
-    "version": "1.2.0",
-    "description": "API para gerenciamento de avaliações, tentativas e respostas"
+    "version": "1.4.0",
+    "description": `API para gerenciamento de avaliações`
   },
   "paths": {
     "/assessments/v1": { 
@@ -408,127 +408,11 @@ export const openapiSpec = {
       "get": {
         "summary": "Obter tentativa por ID",
         "tags": ["attempts"],
+        "description": "⚠️ SOMENTE LEITURA: Tentativas são dados históricos e não podem ser editadas",
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
         "responses": {
           "200": {
             "description": "Tentativa encontrada",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "tentativa": { "$ref": "#/components/schemas/Attempt" },
-                    "mensagem": { "type": "string" }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Tentativa não encontrada",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "summary": "Atualizar tentativa",
-        "tags": ["attempts"],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "data_fim": { "type": "string", "format": "date-time" },
-                  "nota_obtida": { "type": "number" },
-                  "status": { "type": "string" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Tentativa atualizada",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "tentativa": { "$ref": "#/components/schemas/Attempt" },
-                    "mensagem": { "type": "string" }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Tentativa não encontrada",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "summary": "Deletar tentativa",
-        "tags": ["attempts"],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
-        "responses": {
-          "200": {
-            "description": "Tentativa deletada",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "mensagem": { "type": "string" }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Tentativa não encontrada",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/assessments/v1/attempts/{id}/finalize": {
-      "post": {
-        "summary": "Finalizar tentativa",
-        "tags": ["attempts"],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "nota_obtida": { "type": "number" },
-                  "status": { "type": "string", "enum": ["FINALIZADA", "APROVADO", "REPROVADO"] }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Tentativa finalizada",
             "content": {
               "application/json": {
                 "schema": {
@@ -687,6 +571,7 @@ export const openapiSpec = {
       "get": {
         "summary": "Obter resposta por ID",
         "tags": ["answers"],
+        "description": "⚠️ SOMENTE LEITURA: Respostas são dados históricos e não podem ser editadas",
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
         "responses": {
           "200": {
@@ -697,77 +582,6 @@ export const openapiSpec = {
                   "type": "object",
                   "properties": {
                     "resposta": { "$ref": "#/components/schemas/Answer" },
-                    "mensagem": { "type": "string" }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resposta não encontrada",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "summary": "Atualizar resposta",
-        "tags": ["answers"],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "resposta_funcionario": { "type": "string" },
-                  "pontuacao": { "type": "number" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Resposta atualizada",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "resposta": { "$ref": "#/components/schemas/Answer" },
-                    "mensagem": { "type": "string" }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resposta não encontrada",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "summary": "Deletar resposta",
-        "tags": ["answers"],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
-        "responses": {
-          "200": {
-            "description": "Resposta deletada",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
                     "mensagem": { "type": "string" }
                   }
                 }
@@ -847,6 +661,34 @@ export const openapiSpec = {
                   "type": "object",
                   "properties": {
                     "estatisticas": { "$ref": "#/components/schemas/AttemptStatistics" },
+                    "mensagem": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/assessments/v1/attempts/{tentativa_id}/score": {
+      "get": {
+        "summary": "Calcular nota da tentativa",
+        "tags": ["statistics"],
+        "description": "Calcula a nota final da tentativa baseada nas respostas e pontuações",
+        "parameters": [{ "name": "tentativa_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": {
+            "description": "Nota calculada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "nota": { "type": "number", "description": "Nota de 0 a 10" },
+                    "total_questoes": { "type": "integer" },
+                    "questoes_respondidas": { "type": "integer" },
+                    "pontuacao_total": { "type": "number" },
+                    "pontuacao_maxima": { "type": "number" },
                     "mensagem": { "type": "string" }
                   }
                 }

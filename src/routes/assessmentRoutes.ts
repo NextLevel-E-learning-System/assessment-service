@@ -1,15 +1,23 @@
 import { Router } from 'express';
-import { createAssessmentHandler, getAssessmentHandler, addQuestionHandler, listQuestionsHandler, addAlternativeHandler, listAlternativesHandler } from '../controllers/assessmentController.js';
+import { 
+  createAssessmentHandler, 
+  getAssessmentHandler, 
+  listAssessmentsHandler,
+  updateAssessmentHandler,
+  deleteAssessmentHandler,
+  addQuestionHandler, 
+  listQuestionsHandler, 
+  addAlternativeHandler, 
+  listAlternativesHandler 
+} from '../controllers/assessmentController.js';
 import { submitAssessmentHandler } from '../controllers/submitController.js';
 import { 
   startAttemptHandler, 
   createAttemptHandler, 
   getAttemptHandler, 
   listAttemptsByUserHandler, 
-  listAttemptsByAssessmentHandler, 
-  updateAttemptHandler, 
-  deleteAttemptHandler, 
-  finalizeAttemptHandler 
+  listAttemptsByAssessmentHandler
+  // REMOVIDO: updateAttemptHandler, deleteAttemptHandler, finalizeAttemptHandler
 } from '../controllers/attemptController.js';
 import { 
   createAnswerHandler, 
@@ -17,55 +25,64 @@ import {
   getAnswerHandler, 
   listAnswersByAttemptHandler, 
   listAnswersByQuestionHandler, 
-  updateAnswerHandler, 
-  deleteAnswerHandler, 
-  getAttemptStatisticsHandler 
+  getAttemptStatisticsHandler,
+  calculateAttemptScoreHandler
+  // REMOVIDO: updateAnswerHandler, deleteAnswerHandler
 } from '../controllers/answerController.js';
 import { listDissertativeHandler, reviewAttemptHandler } from '../controllers/reviewController.js';
 
 export const assessmentRouter = Router();
 
-// Rotas de avaliações
+// ===== ROTAS DE AVALIAÇÕES =====
+// Validação de edição controlada pelo FRONTEND baseada em 'total_inscricoes' do course service
 assessmentRouter.post('/', createAssessmentHandler);
+assessmentRouter.get('/', listAssessmentsHandler); // Lista com filtro por curso_id
 assessmentRouter.get('/:codigo', getAssessmentHandler);
+assessmentRouter.put('/:codigo', updateAssessmentHandler); // Frontend bloqueia se total_inscricoes > 0
+assessmentRouter.delete('/:codigo', deleteAssessmentHandler); // Frontend bloqueia se total_inscricoes > 0
 
-// Rotas de questões
-assessmentRouter.post('/:codigo/questions', addQuestionHandler);
+// ===== ROTAS DE QUESTÕES =====
+// Validação de edição controlada pelo FRONTEND baseada em 'total_inscricoes' do course service
+assessmentRouter.post('/:codigo/questions', addQuestionHandler); // Frontend bloqueia se total_inscricoes > 0
 assessmentRouter.get('/:codigo/questions', listQuestionsHandler);
 
-// Rotas de alternativas
-assessmentRouter.post('/questions/:questaoId/alternatives', addAlternativeHandler);
+// ===== ROTAS DE ALTERNATIVAS =====
+// Validação de edição controlada pelo FRONTEND baseada em 'total_inscricoes' do course service
+assessmentRouter.post('/questions/:questaoId/alternatives', addAlternativeHandler); // Frontend bloqueia se total_inscricoes > 0
 assessmentRouter.get('/questions/:questaoId/alternatives', listAlternativesHandler);
 
-// Rotas de tentativas - início controlado
+// ===== ROTAS DE TENTATIVAS =====
+// APENAS LEITURA E CRIAÇÃO - TENTATIVAS NÃO PODEM SER EDITADAS OU DELETADAS
+
+// Início de tentativa controlado (com regras de negócio)
 assessmentRouter.post('/:codigo/attempts/start', startAttemptHandler);
 
-// Rotas de tentativas - CRUD completo
+// CRUD de tentativas - APENAS CREATE e READ
 assessmentRouter.post('/attempts', createAttemptHandler);
 assessmentRouter.get('/attempts/:id', getAttemptHandler);
-assessmentRouter.put('/attempts/:id', updateAttemptHandler);
-assessmentRouter.delete('/attempts/:id', deleteAttemptHandler);
-assessmentRouter.post('/attempts/:id/finalize', finalizeAttemptHandler);
+// REMOVIDO: PUT, DELETE, FINALIZE
 
-// Rotas de listagem de tentativas
+// Listagem de tentativas
 assessmentRouter.get('/users/:funcionario_id/attempts', listAttemptsByUserHandler);
 assessmentRouter.get('/avaliacoes/:avaliacao_id/attempts', listAttemptsByAssessmentHandler);
 
-// Rotas de respostas - CRUD completo
-assessmentRouter.post('/answers', createAnswerHandler);
-assessmentRouter.post('/answers/upsert', upsertAnswerHandler);
-assessmentRouter.get('/answers/:id', getAnswerHandler);
-assessmentRouter.put('/answers/:id', updateAnswerHandler);
-assessmentRouter.delete('/answers/:id', deleteAnswerHandler);
+// ===== ROTAS DE RESPOSTAS =====
+// APENAS LEITURA E CRIAÇÃO - RESPOSTAS NÃO PODEM SER EDITADAS OU DELETADAS
 
-// Rotas de listagem de respostas
+assessmentRouter.post('/answers', createAnswerHandler);
+assessmentRouter.post('/answers/upsert', upsertAnswerHandler); // Permitido para salvar rascunhos durante tentativa
+assessmentRouter.get('/answers/:id', getAnswerHandler);
+// REMOVIDO: PUT, DELETE
+
+// Listagem de respostas
 assessmentRouter.get('/attempts/:tentativa_id/answers', listAnswersByAttemptHandler);
 assessmentRouter.get('/questions/:questao_id/answers', listAnswersByQuestionHandler);
 
-// Rotas de estatísticas
+// ===== ROTAS DE ESTATÍSTICAS =====
 assessmentRouter.get('/attempts/:tentativa_id/statistics', getAttemptStatisticsHandler);
+assessmentRouter.get('/attempts/:tentativa_id/score', calculateAttemptScoreHandler);
 
-// Rotas de submissão e revisão
+// ===== ROTAS DE SUBMISSÃO E REVISÃO =====
 assessmentRouter.post('/:codigo/submit', submitAssessmentHandler);
 assessmentRouter.get('/attempts/:attemptId/dissertative', listDissertativeHandler);
 assessmentRouter.patch('/attempts/:attemptId/review', reviewAttemptHandler);

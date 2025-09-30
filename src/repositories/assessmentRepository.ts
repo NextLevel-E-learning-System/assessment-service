@@ -1,8 +1,29 @@
 import { withClient } from '../db.js';
 
 // Ajustado para o schema real assessment_service.*
-export interface NewAssessment { codigo:string; curso_id:string; titulo:string; tempo_limite?:number|null; tentativas_permitidas?:number|null; nota_minima?:number|null }
-export interface Assessment extends NewAssessment { ativo:boolean }
+export interface NewAssessment { 
+  codigo: string; 
+  curso_id: string; 
+  titulo: string; 
+  tempo_limite?: number | null; 
+  tentativas_permitidas?: number | null; 
+  nota_minima?: number | null;
+  modulo_id: string;
+}
+
+export interface Assessment extends NewAssessment { 
+  ativo: boolean;
+  criado_em: Date;
+  atualizado_em: Date;
+}
+
+export interface UpdateAssessmentData {
+  titulo?: string;
+  tempo_limite?: number | null;
+  tentativas_permitidas?: number | null;
+  nota_minima?: number | null;
+  ativo?: boolean;
+}
 
 // No schema real não existe "ordem" nem tabela de alternativas; as opções ficam em opcoes_resposta[] e a correta em resposta_correta.
 export interface NewQuestion { assessment_codigo:string; enunciado:string; tipo:'MULTIPLA_ESCOLHA'|'VERDADEIRO_FALSO'|'DISSERTATIVA'; opcoes_resposta?:string[]; resposta_correta?:string; peso?:number|null }
@@ -15,20 +36,82 @@ export interface Alternative { id:string; questao_id:string; texto:string; corre
 const TABLE_AVALIACOES = 'assessment_service.avaliacoes';
 const TABLE_QUESTOES = 'assessment_service.questoes';
 
-export async function insertAssessment(d:NewAssessment){
-	await withClient(c=>c.query(
-		`insert into ${TABLE_AVALIACOES} (codigo, curso_id, titulo, tempo_limite, tentativas_permitidas, nota_minima, ativo)
-		 values ($1,$2,$3,$4,$5,$6,true)`,
-		[d.codigo,d.curso_id,d.titulo,d.tempo_limite||null,d.tentativas_permitidas||null,d.nota_minima||null]
-	));
+export async function insertAssessment(d: NewAssessment) {
+  await withClient(c => c.query(
+    `INSERT INTO ${TABLE_AVALIACOES} (codigo, curso_id, titulo, tempo_limite, tentativas_permitidas, nota_minima, modulo_id, ativo)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, true)`,
+    [d.codigo, d.curso_id, d.titulo, d.tempo_limite || null, d.tentativas_permitidas || null, d.nota_minima || null, d.modulo_id]
+  ));
 }
-export async function findByCodigo(codigo:string): Promise<Assessment | null>{
-	return withClient(async c=>{
-		const r = await c.query(
-			`select codigo, curso_id, titulo, tempo_limite, tentativas_permitidas, nota_minima, ativo
-			 from ${TABLE_AVALIACOES} where codigo=$1`,[codigo]);
-		return r.rows[0]||null;
-	});
+
+export async function findByCodigo(codigo: string): Promise<Assessment | null> {
+  return withClient(async c => {
+    const r = await c.query(
+      `SELECT codigo, curso_id, titulo, tempo_limite, tentativas_permitidas, nota_minima, modulo_id, ativo, criado_em, atualizado_em
+       FROM ${TABLE_AVALIACOES} WHERE codigo = $1`, [codigo]);
+    return r.rows[0] || null;
+  });
+}
+
+export async function listAssessmentsByCourse(curso_id: string): Promise<Assessment[]> {
+  return withClient(async c => {
+    const r = await c.query(
+      `SELECT codigo, curso_id, titulo, tempo_limite, tentativas_permitidas, nota_minima, modulo_id, ativo, criado_em, atualizado_em
+       FROM ${TABLE_AVALIACOES} WHERE curso_id = $1 ORDER BY criado_em DESC`, [curso_id]);
+    return r.rows;
+  });
+}
+
+export async function updateAssessmentDb(codigo: string, data: UpdateAssessmentData): Promise<boolean> {
+  return withClient(async c => {
+    const setParts: string[] = [];
+    const values: (string | number | boolean | null)[] = [];
+    let paramCount = 1;
+
+    if (data.titulo !== undefined) {
+      setParts.push(`titulo = $${paramCount++}`);
+      values.push(data.titulo);
+    }
+    if (data.tempo_limite !== undefined) {
+      setParts.push(`tempo_limite = $${paramCount++}`);
+      values.push(data.tempo_limite);
+    }
+    if (data.tentativas_permitidas !== undefined) {
+      setParts.push(`tentativas_permitidas = $${paramCount++}`);
+      values.push(data.tentativas_permitidas);
+    }
+    if (data.nota_minima !== undefined) {
+      setParts.push(`nota_minima = $${paramCount++}`);
+      values.push(data.nota_minima);
+    }
+    if (data.ativo !== undefined) {
+      setParts.push(`ativo = $${paramCount++}`);
+      values.push(data.ativo);
+    }
+
+    if (setParts.length === 0) return false;
+
+    setParts.push(`atualizado_em = NOW()`);
+    values.push(codigo);
+
+    const result = await c.query(
+      `UPDATE ${TABLE_AVALIACOES} SET ${setParts.join(', ')} WHERE codigo = $${paramCount}`,
+      values
+    );
+
+    return (result.rowCount || 0) > 0;
+  });
+}
+
+export async function deleteAssessmentDb(codigo: string): Promise<boolean> {
+  return withClient(async c => {
+    // Primeiro deletar questões relacionadas (que por sua vez deletam respostas via FK CASCADE)
+    await c.query('DELETE FROM assessment_service.questoes WHERE avaliacao_id = $1', [codigo]);
+    
+    // Depois deletar a avaliação
+    const result = await c.query(`DELETE FROM ${TABLE_AVALIACOES} WHERE codigo = $1`, [codigo]);
+    return (result.rowCount || 0) > 0;
+  });
 }
 
 export async function insertQuestion(q:NewQuestion): Promise<string>{

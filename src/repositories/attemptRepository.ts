@@ -23,6 +23,14 @@ export interface UpdateAttemptInput {
   status?: string;
 }
 
+export interface StartAttemptResult {
+  id: string;
+  funcionario_id: string;
+  avaliacao_id: string;
+  data_inicio: Date;
+  deadline?: Date | null;
+}
+
 const TABLE_TENTATIVAS = 'assessment_service.tentativas';
 
 export async function createAttempt(data: CreateAttemptInput): Promise<string> {
@@ -33,6 +41,47 @@ export async function createAttempt(data: CreateAttemptInput): Promise<string> {
       [data.funcionario_id, data.avaliacao_id, data.status || 'EM_ANDAMENTO']
     );
     return result.rows[0].id;
+  });
+}
+
+// NOVA: Substituir startAttempt do submissionRepository
+export async function startAttempt(
+  avaliacao_id: string, 
+  funcionario_id: string, 
+  tempoLimiteMinutos?: number | null, 
+  initialStatus: 'EM_ANDAMENTO' | 'EM_ANDAMENTO_RECUPERACAO' = 'EM_ANDAMENTO'
+): Promise<StartAttemptResult> {
+  return withClient(async c => {
+    const result = await c.query(
+      `INSERT INTO ${TABLE_TENTATIVAS} (funcionario_id, avaliacao_id, status) 
+       VALUES ($1, $2, $3) RETURNING id, funcionario_id, avaliacao_id, data_inicio`,
+      [funcionario_id, avaliacao_id, initialStatus]
+    );
+    
+    let deadline: Date | null = null;
+    if (tempoLimiteMinutos && tempoLimiteMinutos > 0) {
+      deadline = new Date(Date.now() + tempoLimiteMinutos * 60000);
+    }
+    
+    return {
+      id: result.rows[0].id,
+      funcionario_id: result.rows[0].funcionario_id,
+      avaliacao_id: result.rows[0].avaliacao_id,
+      data_inicio: result.rows[0].data_inicio,
+      deadline
+    };
+  });
+}
+
+// NOVA: Substituir finalizeAttempt do submissionRepository
+export async function finalizeAttempt(attemptId: string, nota: number | null, status: string): Promise<void> {
+  return withClient(async c => {
+    await c.query(
+      `UPDATE ${TABLE_TENTATIVAS} 
+       SET data_fim = NOW(), nota_obtida = $2, status = $3 
+       WHERE id = $1`,
+      [attemptId, nota, status]
+    );
   });
 }
 
@@ -77,47 +126,8 @@ export async function findAttemptsByAssessment(avaliacao_id: string): Promise<At
   });
 }
 
-export async function updateAttempt(id: string, data: UpdateAttemptInput): Promise<boolean> {
-  return withClient(async c => {
-    const setParts: string[] = [];
-    const values: (string | number | Date | null)[] = [];
-    let paramCount = 1;
-
-    if (data.data_fim !== undefined) {
-      setParts.push(`data_fim = $${paramCount++}`);
-      values.push(data.data_fim);
-    }
-    if (data.nota_obtida !== undefined) {
-      setParts.push(`nota_obtida = $${paramCount++}`);
-      values.push(data.nota_obtida);
-    }
-    if (data.status !== undefined) {
-      setParts.push(`status = $${paramCount++}`);
-      values.push(data.status);
-    }
-
-    if (setParts.length === 0) return false;
-
-    values.push(id);
-    const result = await c.query(
-      `UPDATE ${TABLE_TENTATIVAS} SET ${setParts.join(', ')} WHERE id = $${paramCount}`,
-      values
-    );
-    
-    return (result.rowCount || 0) > 0;
-  });
-}
-
-export async function deleteAttempt(id: string): Promise<boolean> {
-  return withClient(async c => {
-    // Primeiro deletar respostas relacionadas
-    await c.query('DELETE FROM assessment_service.respostas WHERE tentativa_id = $1', [id]);
-    
-    // Depois deletar a tentativa
-    const result = await c.query(`DELETE FROM ${TABLE_TENTATIVAS} WHERE id = $1`, [id]);
-    return (result.rowCount || 0) > 0;
-  });
-}
+// TENTATIVAS NÃO PODEM SER EDITADAS OU DELETADAS
+// São dados históricos dos alunos e devem ser preservados
 
 export async function countAttemptsByUser(funcionario_id: string, avaliacao_id: string): Promise<number> {
   return withClient(async c => {

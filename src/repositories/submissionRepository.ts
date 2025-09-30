@@ -1,44 +1,14 @@
 import { withClient } from '../db.js';
 
-// Agora refletindo o schema real: tentativas + respostas
+// Interface limpa focada apenas no workflow de submissão completa
 export interface SubmissionAnswerInput { questao_id:string; resposta:string }
 export interface CreateSubmissionInput { assessment_codigo:string; user_id:string; respostas: SubmissionAnswerInput[] }
 export interface StoredSubmission { id:string; assessment_codigo:string; user_id:string; nota:number; aprovado:boolean; data_fim:Date }
-export interface StartedAttempt { id:string; assessment_codigo:string; user_id:string; data_inicio:Date; deadline?:Date|null }
 
 const TABLE_TENTATIVAS = 'assessment_service.tentativas';
 const TABLE_RESPOSTAS = 'assessment_service.respostas';
 
-export async function startAttempt(assessmentCodigo:string, userId:string, tempoLimiteMinutos?:number|null, initialStatus:'EM_ANDAMENTO'|'EM_ANDAMENTO_RECUPERACAO'='EM_ANDAMENTO'): Promise<StartedAttempt>{
-  return withClient(async c=>{
-    const r = await c.query(`insert into ${TABLE_TENTATIVAS}(funcionario_id, avaliacao_id, status) values ($1,$2,$3) returning id, avaliacao_id, funcionario_id, data_inicio`,[userId, assessmentCodigo, initialStatus]);
-    let deadline:Date|null = null;
-    if(tempoLimiteMinutos && tempoLimiteMinutos>0){ deadline = new Date(Date.now() + tempoLimiteMinutos*60000); }
-    return { id:r.rows[0].id, assessment_codigo:r.rows[0].avaliacao_id, user_id:r.rows[0].funcionario_id, data_inicio:r.rows[0].data_inicio, deadline };
-  });
-}
-
-export async function finalizeAttempt(attemptId:string, nota:number|null, status:string){
-  return withClient(async c=>{
-    await c.query(`update ${TABLE_TENTATIVAS} set data_fim=now(), nota_obtida=$2, status=$3 where id=$1`,[attemptId, nota, status]);
-  });
-}
-
-export async function getAttempt(attemptId:string){
-  return withClient(async c=>{
-    const r = await c.query(`select id, funcionario_id, avaliacao_id, data_inicio, data_fim, nota_obtida, status from ${TABLE_TENTATIVAS} where id=$1`,[attemptId]);
-    return r.rows[0]||null;
-  });
-}
-
-export async function saveAnswers(attemptId:string, answers:SubmissionAnswerInput[]){
-  return withClient(async c=>{
-    for(const r of answers){
-      await c.query(`insert into ${TABLE_RESPOSTAS}(tentativa_id, questao_id, resposta_funcionario) values ($1,$2,$3) on conflict (tentativa_id, questao_id) do update set resposta_funcionario=excluded.resposta_funcionario`, [attemptId, r.questao_id, r.resposta]);
-    }
-  });
-}
-
+// MANTÉM: Workflow completo de submissão (usado pelo submitService)
 export async function createSubmission(data:CreateSubmissionInput, nota:number, aprovado:boolean): Promise<StoredSubmission>{
   return withClient(async c => {
     // cria tentativa em andamento

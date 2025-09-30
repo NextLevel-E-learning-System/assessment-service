@@ -133,63 +133,6 @@ export async function listAnswersByQuestionHandler(req: Request, res: Response) 
   }
 }
 
-export async function updateAnswerHandler(req: Request, res: Response) {
-  try {
-    const { id } = req.params;
-    const { resposta_funcionario, pontuacao } = req.body;
-    
-    const updated = await answerRepository.updateAnswer(id, {
-      resposta_funcionario,
-      pontuacao
-    });
-    
-    if (!updated) {
-      return res.status(404).json({ 
-        erro: 'resposta_nao_encontrada', 
-        mensagem: 'Resposta não encontrada ou nenhum dado para atualizar' 
-      });
-    }
-
-    const answer = await answerRepository.findAnswerById(id);
-    
-    return res.json({
-      resposta: answer,
-      mensagem: 'Resposta atualizada com sucesso'
-    });
-  } catch (error) {
-    console.error('Erro ao atualizar resposta:', error);
-    return res.status(500).json({ 
-      erro: 'erro_interno', 
-      mensagem: 'Erro interno do servidor' 
-    });
-  }
-}
-
-export async function deleteAnswerHandler(req: Request, res: Response) {
-  try {
-    const { id } = req.params;
-    
-    const deleted = await answerRepository.deleteAnswer(id);
-    
-    if (!deleted) {
-      return res.status(404).json({ 
-        erro: 'resposta_nao_encontrada', 
-        mensagem: 'Resposta não encontrada' 
-      });
-    }
-
-    return res.json({
-      mensagem: 'Resposta deletada com sucesso'
-    });
-  } catch (error) {
-    console.error('Erro ao deletar resposta:', error);
-    return res.status(500).json({ 
-      erro: 'erro_interno', 
-      mensagem: 'Erro interno do servidor' 
-    });
-  }
-}
-
 export async function getAttemptStatisticsHandler(req: Request, res: Response) {
   try {
     const { tentativa_id } = req.params;
@@ -202,6 +145,48 @@ export async function getAttemptStatisticsHandler(req: Request, res: Response) {
     });
   } catch (error) {
     console.error('Erro ao obter estatísticas da tentativa:', error);
+    return res.status(500).json({ 
+      erro: 'erro_interno', 
+      mensagem: 'Erro interno do servidor' 
+    });
+  }
+}
+
+export async function calculateAttemptScoreHandler(req: Request, res: Response) {
+  try {
+    const { tentativa_id } = req.params;
+    
+    // USANDO answerRepository diretamente - lógica consolidada
+    const answers = await answerRepository.findAnswersByAttempt(tentativa_id);
+    
+    if (answers.length === 0) {
+      return res.status(404).json({
+        erro: 'nenhuma_resposta',
+        mensagem: 'Nenhuma resposta encontrada para esta tentativa'
+      });
+    }
+
+    let pontuacao_total = 0;
+    let questoes_total = 0;
+    
+    for (const answer of answers) {
+      if (answer.pontuacao !== null) {
+        pontuacao_total += answer.pontuacao;
+      }
+      questoes_total++;
+    }
+    
+    const nota_percentual = questoes_total > 0 ? (pontuacao_total / questoes_total) * 100 : 0;
+    
+    return res.json({
+      tentativa_id,
+      pontuacao_total,
+      questoes_total,
+      nota_percentual: Math.round(nota_percentual * 100) / 100, // 2 casas decimais
+      mensagem: 'Nota calculada com sucesso'
+    });
+  } catch (error) {
+    console.error('Erro ao calcular nota da tentativa:', error);
     return res.status(500).json({ 
       erro: 'erro_interno', 
       mensagem: 'Erro interno do servidor' 

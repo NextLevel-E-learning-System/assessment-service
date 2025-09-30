@@ -83,47 +83,6 @@ export async function findAnswersByQuestion(questao_id: string): Promise<Answer[
   });
 }
 
-export async function updateAnswer(id: string, data: UpdateAnswerInput): Promise<boolean> {
-  return withClient(async c => {
-    const setParts: string[] = [];
-    const values: (string | number | null)[] = [];
-    let paramCount = 1;
-
-    if (data.resposta_funcionario !== undefined) {
-      setParts.push(`resposta_funcionario = $${paramCount++}`);
-      values.push(data.resposta_funcionario);
-    }
-    if (data.pontuacao !== undefined) {
-      setParts.push(`pontuacao = $${paramCount++}`);
-      values.push(data.pontuacao);
-    }
-
-    if (setParts.length === 0) return false;
-
-    values.push(id);
-    const result = await c.query(
-      `UPDATE ${TABLE_RESPOSTAS} SET ${setParts.join(', ')} WHERE id = $${paramCount}`,
-      values
-    );
-    
-    return (result.rowCount || 0) > 0;
-  });
-}
-
-export async function deleteAnswer(id: string): Promise<boolean> {
-  return withClient(async c => {
-    const result = await c.query(`DELETE FROM ${TABLE_RESPOSTAS} WHERE id = $1`, [id]);
-    return (result.rowCount || 0) > 0;
-  });
-}
-
-export async function deleteAnswersByAttempt(tentativa_id: string): Promise<number> {
-  return withClient(async c => {
-    const result = await c.query(`DELETE FROM ${TABLE_RESPOSTAS} WHERE tentativa_id = $1`, [tentativa_id]);
-    return result.rowCount || 0;
-  });
-}
-
 export async function getAttemptStatistics(tentativa_id: string) {
   return withClient(async c => {
     const result = await c.query(
