@@ -29,17 +29,21 @@ import {
   calculateAttemptScoreHandler
   // REMOVIDO: updateAnswerHandler, deleteAnswerHandler
 } from '../controllers/answerController.js';
-import { listDissertativeHandler, reviewAttemptHandler } from '../controllers/reviewController.js';
+import { 
+  listDissertativeHandler, 
+  reviewAttemptHandler,
+  getAnswerFeedbackHandler,
+  listPendingReviewsHandler
+} from '../controllers/reviewController.js';
 
 export const assessmentRouter = Router();
 
 // ===== ROTAS DE AVALIAÇÕES =====
-// Validação de edição controlada pelo FRONTEND baseada em 'total_inscricoes' do course service
 assessmentRouter.post('/', createAssessmentHandler);
 assessmentRouter.get('/', listAssessmentsHandler); // Lista com filtro por curso_id
 assessmentRouter.get('/:codigo', getAssessmentHandler);
-assessmentRouter.put('/:codigo', updateAssessmentHandler); // Frontend bloqueia se total_inscricoes > 0
-assessmentRouter.delete('/:codigo', deleteAssessmentHandler); // Frontend bloqueia se total_inscricoes > 0
+assessmentRouter.put('/:codigo', updateAssessmentHandler); 
+assessmentRouter.delete('/:codigo', deleteAssessmentHandler); 
 
 // ===== ROTAS DE QUESTÕES =====
 // Validação de edição controlada pelo FRONTEND baseada em 'total_inscricoes' do course service
@@ -51,8 +55,6 @@ assessmentRouter.get('/:codigo/questions', listQuestionsHandler);
 assessmentRouter.post('/questions/:questaoId/alternatives', addAlternativeHandler); // Frontend bloqueia se total_inscricoes > 0
 assessmentRouter.get('/questions/:questaoId/alternatives', listAlternativesHandler);
 
-// ===== ROTAS DE TENTATIVAS =====
-// APENAS LEITURA E CRIAÇÃO - TENTATIVAS NÃO PODEM SER EDITADAS OU DELETADAS
 
 // Início de tentativa controlado (com regras de negócio)
 assessmentRouter.post('/:codigo/attempts/start', startAttemptHandler);
@@ -84,5 +86,16 @@ assessmentRouter.get('/attempts/:tentativa_id/score', calculateAttemptScoreHandl
 
 // ===== ROTAS DE SUBMISSÃO E REVISÃO =====
 assessmentRouter.post('/:codigo/submit', submitAssessmentHandler);
+
+// ===== ROTAS DE CORREÇÃO DISSERTATIVA (R16) =====
+// Listar respostas dissertativas para correção
 assessmentRouter.get('/attempts/:attemptId/dissertative', listDissertativeHandler);
+
+// Aplicar correção com feedback personalizado
 assessmentRouter.patch('/attempts/:attemptId/review', reviewAttemptHandler);
+
+// Feedback específico de uma resposta (agora direto da tabela respostas)
+assessmentRouter.get('/answers/:respostaId/feedback', getAnswerFeedbackHandler);
+
+// Fila de correções pendentes
+assessmentRouter.get('/reviews/pending', listPendingReviewsHandler);

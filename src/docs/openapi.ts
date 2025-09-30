@@ -2,8 +2,37 @@ export const openapiSpec = {
   "openapi": "3.0.3",
   "info": { 
     "title": "Assessment Service API", 
-    "version": "1.4.0",
-    "description": `API para gerenciamento de avaliações`
+    "version": "1.5.0",
+    "description": `API para gerenciamento de avaliações com suporte completo a questões dissertativas.
+
+**REQUISITOS IMPLEMENTADOS:**
+
+**R14: Criar Avaliações**
+• Tipos de questão: múltipla escolha, verdadeiro/falso, dissertativa ✅
+• Configurar: tempo limite, número de tentativas, nota mínima ✅  
+• Banco de questões reutilizáveis por categoria ✅
+• Correção automática (objetivas) e manual (dissertativas) ✅
+
+**R16: Corrigir Avaliações**
+• Fila de correções pendentes ✅
+• Interface para correção de questões dissertativas ✅
+• Feedback personalizado por aluno ✅
+• Histórico de correções realizadas ✅
+
+**REGRAS DE INTEGRIDADE:**
+• Tentativas e respostas: APENAS leitura e criação (preservação do histórico)
+• Avaliações/questões: Frontend controla edição baseado em 'total_inscricoes' do course service
+
+**VALIDAÇÃO NO FRONTEND:**
+• Course service retorna 'total_inscricoes' em GET /courses/:codigo
+• Se total_inscricoes > 0: Bloquear edição para INSTRUTOR
+• ADMIN/GERENTE: Sempre podem editar (independente de inscrições)
+
+**FLUXO DISSERTATIVO:**
+1. Submissão → Status 'PENDENTE_REVISAO' se houver questões dissertativas
+2. Correção manual → POST /attempts/:id/review com feedback
+3. Finalização → Status 'APROVADO'/'REPROVADO' + publicação de eventos
+`
   },
   "paths": {
     "/assessments/v1": { 
@@ -826,8 +855,9 @@ export const openapiSpec = {
                       "type": "object", 
                       "required": ["respostaId","pontuacao"], 
                       "properties": { 
-                        "respostaId": { "type": "string" }, 
-                        "pontuacao": { "type": "number" } 
+                        "respostaId": { "type": "string", "format": "uuid" }, 
+                        "pontuacao": { "type": "number" },
+                        "feedback": { "type": "string", "description": "Feedback personalizado para o aluno" }
                       } 
                     } 
                   } 
@@ -871,6 +901,88 @@ export const openapiSpec = {
           } 
         } 
       } 
+    },
+    "/assessments/v1/answers/{respostaId}/feedback": {
+      "get": {
+        "summary": "Obter feedback de uma resposta",
+        "tags": ["review"],
+        "description": "Retorna o feedback mais recente dado a uma resposta específica (agora direto da tabela respostas)",
+        "parameters": [{ 
+          "name": "respostaId", 
+          "in": "path", 
+          "required": true, 
+          "schema": { "type": "string", "format": "uuid" },
+          "description": "ID da resposta"
+        }],
+        "responses": {
+          "200": {
+            "description": "Feedback da resposta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "resposta_id": { "type": "string", "format": "uuid" },
+                    "feedback": { "$ref": "#/components/schemas/AnswerFeedback" },
+                    "mensagem": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Feedback não encontrado",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/assessments/v1/reviews/pending": {
+      "get": {
+        "summary": "Listar fila de correções pendentes",
+        "tags": ["review"],
+        "description": "Retorna lista de tentativas pendentes de correção dissertativa (R16: Fila de correções pendentes)",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 },
+            "description": "Limite de registros por página"
+          },
+          {
+            "name": "offset",
+            "in": "query", 
+            "schema": { "type": "integer", "minimum": 0, "default": 0 },
+            "description": "Offset para paginação"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fila de correções pendentes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "correcoes_pendentes": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/PendingReview" }
+                    },
+                    "total": { "type": "integer" },
+                    "limit": { "type": "integer" },
+                    "offset": { "type": "integer" },
+                    "mensagem": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -943,6 +1055,7 @@ export const openapiSpec = {
           "questao_id": { "type": "string", "format": "uuid" },
           "resposta_funcionario": { "type": "string", "nullable": true },
           "pontuacao": { "type": "number", "nullable": true },
+          "feedback": { "type": "string", "nullable": true, "description": "Feedback do instrutor para questões dissertativas" },
           "criado_em": { "type": "string", "format": "date-time" }
         }
       },
@@ -988,6 +1101,37 @@ export const openapiSpec = {
           "questoes_respondidas": { "type": "integer" },
           "pontuacao_media": { "type": "number" },
           "pontuacao_total": { "type": "number" }
+        }
+      },
+      "ReviewScore": {
+        "type": "object",
+        "required": ["respostaId", "pontuacao"],
+        "properties": {
+          "respostaId": { "type": "string", "format": "uuid" },
+          "pontuacao": { "type": "number", "minimum": 0 },
+          "feedback": { "type": "string" }
+        }
+      },
+      "PendingReview": {
+        "type": "object",
+        "required": ["tentativa_id", "funcionario_id", "avaliacao_id", "data_inicio", "total_dissertativas"],
+        "properties": {
+          "tentativa_id": { "type": "string", "format": "uuid" },
+          "funcionario_id": { "type": "string", "format": "uuid" },
+          "avaliacao_id": { "type": "string" },
+          "data_inicio": { "type": "string", "format": "date-time" },
+          "avaliacao_titulo": { "type": "string" },
+          "funcionario_nome": { "type": "string" },
+          "funcionario_email": { "type": "string" },
+          "total_dissertativas": { "type": "integer" }
+        }
+      },
+      "AnswerFeedback": {
+        "type": "object",
+        "properties": {
+          "feedback": { "type": "string", "nullable": true },
+          "pontuacao": { "type": "number" },
+          "criado_em": { "type": "string", "format": "date-time" }
         }
       }
     }

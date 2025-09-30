@@ -5,6 +5,7 @@ export interface CreateAnswerInput {
   questao_id: string;
   resposta_funcionario: string;
   pontuacao?: number | null;
+  feedback?: string | null;
 }
 
 export interface Answer {
@@ -13,12 +14,14 @@ export interface Answer {
   questao_id: string;
   resposta_funcionario: string | null;
   pontuacao: number | null;
+  feedback: string | null;
   criado_em: Date;
 }
 
 export interface UpdateAnswerInput {
   resposta_funcionario?: string;
   pontuacao?: number | null;
+  feedback?: string | null;
 }
 
 const TABLE_RESPOSTAS = 'assessment_service.respostas';
@@ -26,9 +29,9 @@ const TABLE_RESPOSTAS = 'assessment_service.respostas';
 export async function createAnswer(data: CreateAnswerInput): Promise<string> {
   return withClient(async c => {
     const result = await c.query(
-      `INSERT INTO ${TABLE_RESPOSTAS} (tentativa_id, questao_id, resposta_funcionario, pontuacao) 
-       VALUES ($1, $2, $3, $4) RETURNING id`,
-      [data.tentativa_id, data.questao_id, data.resposta_funcionario, data.pontuacao || null]
+      `INSERT INTO ${TABLE_RESPOSTAS} (tentativa_id, questao_id, resposta_funcionario, pontuacao, feedback) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [data.tentativa_id, data.questao_id, data.resposta_funcionario, data.pontuacao || null, data.feedback || null]
     );
     return result.rows[0].id;
   });
@@ -37,12 +40,15 @@ export async function createAnswer(data: CreateAnswerInput): Promise<string> {
 export async function upsertAnswer(data: CreateAnswerInput): Promise<string> {
   return withClient(async c => {
     const result = await c.query(
-      `INSERT INTO ${TABLE_RESPOSTAS} (tentativa_id, questao_id, resposta_funcionario, pontuacao) 
-       VALUES ($1, $2, $3, $4) 
+      `INSERT INTO ${TABLE_RESPOSTAS} (tentativa_id, questao_id, resposta_funcionario, pontuacao, feedback) 
+       VALUES ($1, $2, $3, $4, $5) 
        ON CONFLICT (tentativa_id, questao_id) 
-       DO UPDATE SET resposta_funcionario = EXCLUDED.resposta_funcionario, pontuacao = EXCLUDED.pontuacao
+       DO UPDATE SET 
+         resposta_funcionario = EXCLUDED.resposta_funcionario, 
+         pontuacao = EXCLUDED.pontuacao,
+         feedback = EXCLUDED.feedback
        RETURNING id`,
-      [data.tentativa_id, data.questao_id, data.resposta_funcionario, data.pontuacao || null]
+      [data.tentativa_id, data.questao_id, data.resposta_funcionario, data.pontuacao || null, data.feedback || null]
     );
     return result.rows[0].id;
   });
@@ -51,7 +57,7 @@ export async function upsertAnswer(data: CreateAnswerInput): Promise<string> {
 export async function findAnswerById(id: string): Promise<Answer | null> {
   return withClient(async c => {
     const result = await c.query(
-      `SELECT id, tentativa_id, questao_id, resposta_funcionario, pontuacao, criado_em
+      `SELECT id, tentativa_id, questao_id, resposta_funcionario, pontuacao, feedback, criado_em
        FROM ${TABLE_RESPOSTAS} WHERE id = $1`,
       [id]
     );
@@ -62,7 +68,7 @@ export async function findAnswerById(id: string): Promise<Answer | null> {
 export async function findAnswersByAttempt(tentativa_id: string): Promise<Answer[]> {
   return withClient(async c => {
     const result = await c.query(
-      `SELECT id, tentativa_id, questao_id, resposta_funcionario, pontuacao, criado_em
+      `SELECT id, tentativa_id, questao_id, resposta_funcionario, pontuacao, feedback, criado_em
        FROM ${TABLE_RESPOSTAS} WHERE tentativa_id = $1
        ORDER BY criado_em ASC`,
       [tentativa_id]
@@ -74,7 +80,7 @@ export async function findAnswersByAttempt(tentativa_id: string): Promise<Answer
 export async function findAnswersByQuestion(questao_id: string): Promise<Answer[]> {
   return withClient(async c => {
     const result = await c.query(
-      `SELECT id, tentativa_id, questao_id, resposta_funcionario, pontuacao, criado_em
+      `SELECT id, tentativa_id, questao_id, resposta_funcionario, pontuacao, feedback, criado_em
        FROM ${TABLE_RESPOSTAS} WHERE questao_id = $1
        ORDER BY criado_em DESC`,
       [questao_id]

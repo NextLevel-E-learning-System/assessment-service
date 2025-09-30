@@ -3,7 +3,7 @@ import * as answerRepository from '../repositories/answerRepository.js';
 
 export async function createAnswerHandler(req: Request, res: Response) {
   try {
-    const { tentativa_id, questao_id, resposta_funcionario, pontuacao } = req.body;
+    const { tentativa_id, questao_id, resposta_funcionario, pontuacao, feedback } = req.body;
     
     if (!tentativa_id || !questao_id || !resposta_funcionario) {
       return res.status(400).json({ 
@@ -16,7 +16,8 @@ export async function createAnswerHandler(req: Request, res: Response) {
       tentativa_id,
       questao_id,
       resposta_funcionario,
-      pontuacao
+      pontuacao,
+      feedback
     });
 
     const answer = await answerRepository.findAnswerById(answerId);
@@ -36,7 +37,7 @@ export async function createAnswerHandler(req: Request, res: Response) {
 
 export async function upsertAnswerHandler(req: Request, res: Response) {
   try {
-    const { tentativa_id, questao_id, resposta_funcionario, pontuacao } = req.body;
+    const { tentativa_id, questao_id, resposta_funcionario, pontuacao, feedback } = req.body;
     
     if (!tentativa_id || !questao_id || !resposta_funcionario) {
       return res.status(400).json({ 
@@ -49,7 +50,8 @@ export async function upsertAnswerHandler(req: Request, res: Response) {
       tentativa_id,
       questao_id,
       resposta_funcionario,
-      pontuacao
+      pontuacao,
+      feedback
     });
 
     const answer = await answerRepository.findAnswerById(answerId);
