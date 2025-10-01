@@ -2,36 +2,8 @@ export const openapiSpec = {
   "openapi": "3.0.3",
   "info": { 
     "title": "Assessment Service API", 
-    "version": "1.5.0",
-    "description": `API para gerenciamento de avaliações com suporte completo a questões dissertativas.
-
-**REQUISITOS IMPLEMENTADOS:**
-
-**R14: Criar Avaliações**
-• Tipos de questão: múltipla escolha, verdadeiro/falso, dissertativa ✅
-• Configurar: tempo limite, número de tentativas, nota mínima ✅  
-• Banco de questões reutilizáveis por categoria ✅
-• Correção automática (objetivas) e manual (dissertativas) ✅
-
-**R16: Corrigir Avaliações**
-• Fila de correções pendentes ✅
-• Interface para correção de questões dissertativas ✅
-• Feedback personalizado por aluno ✅
-• Histórico de correções realizadas ✅
-
-**REGRAS DE INTEGRIDADE:**
-• Tentativas e respostas: APENAS leitura e criação (preservação do histórico)
-• Avaliações/questões: Frontend controla edição baseado em 'total_inscricoes' do course service
-
-**VALIDAÇÃO NO FRONTEND:**
-• Course service retorna 'total_inscricoes' em GET /courses/:codigo
-• Se total_inscricoes > 0: Bloquear edição para INSTRUTOR
-• ADMIN/GERENTE: Sempre podem editar (independente de inscrições)
-
-**FLUXO DISSERTATIVO:**
-1. Submissão → Status 'PENDENTE_REVISAO' se houver questões dissertativas
-2. Correção manual → POST /attempts/:id/review com feedback
-3. Finalização → Status 'APROVADO'/'REPROVADO' + publicação de eventos
+    "version": "1.6.0",
+    "description": `API para gerenciamento de avaliações com suporte completo a questões dissertativas e cálculo de notas.
 `
   },
   "paths": {
@@ -522,6 +494,7 @@ export const openapiSpec = {
       "post": {
         "summary": "Criar resposta",
         "tags": ["answers"],
+        "description": "Cria uma nova resposta. Para questões dissertativas, pontuacao e feedback podem ser preenchidos posteriormente pelo instrutor.",
         "requestBody": {
           "required": true,
           "content": {
@@ -533,7 +506,8 @@ export const openapiSpec = {
                   "tentativa_id": { "type": "string", "format": "uuid" },
                   "questao_id": { "type": "string", "format": "uuid" },
                   "resposta_funcionario": { "type": "string" },
-                  "pontuacao": { "type": "number" }
+                  "pontuacao": { "type": "number", "description": "Pontuação atribuída (preenchida pelo instrutor para dissertativas)" },
+                  "feedback": { "type": "string", "description": "Feedback do instrutor para a resposta (especialmente dissertativas)" }
                 }
               }
             }
@@ -561,6 +535,7 @@ export const openapiSpec = {
       "post": {
         "summary": "Criar ou atualizar resposta",
         "tags": ["answers"],
+        "description": "Cria uma nova resposta ou atualiza existente. Útil para salvar rascunhos durante tentativa ou para correção de dissertativas.",
         "requestBody": {
           "required": true,
           "content": {
@@ -572,7 +547,8 @@ export const openapiSpec = {
                   "tentativa_id": { "type": "string", "format": "uuid" },
                   "questao_id": { "type": "string", "format": "uuid" },
                   "resposta_funcionario": { "type": "string" },
-                  "pontuacao": { "type": "number" }
+                  "pontuacao": { "type": "number", "description": "Pontuação atribuída (preenchida pelo instrutor para dissertativas)" },
+                  "feedback": { "type": "string", "description": "Feedback do instrutor para a resposta (especialmente dissertativas)" }
                 }
               }
             }
@@ -703,21 +679,20 @@ export const openapiSpec = {
       "get": {
         "summary": "Calcular nota da tentativa",
         "tags": ["statistics"],
-        "description": "Calcula a nota final da tentativa baseada nas respostas e pontuações",
+        "description": "Calcula a nota final da tentativa respeitando pesos das questões. Se há questões dissertativas sem nota, retorna nota proporcional apenas das objetivas até a correção manual.",
         "parameters": [{ "name": "tentativa_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
         "responses": {
           "200": {
-            "description": "Nota calculada",
+            "description": "Nota calculada respeitando pesos",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "nota": { "type": "number", "description": "Nota de 0 a 10" },
-                    "total_questoes": { "type": "integer" },
-                    "questoes_respondidas": { "type": "integer" },
-                    "pontuacao_total": { "type": "number" },
-                    "pontuacao_maxima": { "type": "number" },
+                    "tentativa_id": { "type": "string", "format": "uuid" },
+                    "pontuacao_total": { "type": "number", "description": "Pontos obtidos respeitando peso das questões" },
+                    "questoes_total": { "type": "integer", "description": "Total de questões na avaliação" },
+                    "nota_percentual": { "type": "number", "description": "Nota final de 0 a 100" },
                     "mensagem": { "type": "string" }
                   }
                 }
@@ -839,6 +814,7 @@ export const openapiSpec = {
       "patch": { 
         "summary": "Aplicar revisão manual em questões dissertativas", 
         "tags": ["review"], 
+        "description": "Aplica pontuação e feedback nas questões dissertativas. Recalcula automaticamente a nota final considerando peso de todas as questões e finaliza a tentativa com status APROVADO/REPROVADO. Publica eventos após finalização.",
         "parameters": [{ "name": "attemptId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }], 
         "requestBody": { 
           "required": true, 
@@ -848,16 +824,17 @@ export const openapiSpec = {
                 "type": "object", 
                 "required": ["scores"], 
                 "properties": { 
-                  "notaMinima": { "type": "number" }, 
+                  "notaMinima": { "type": "number", "default": 70, "description": "Nota mínima para aprovação (0-100)" }, 
                   "scores": { 
                     "type": "array", 
+                    "description": "Array com pontuação e feedback para cada resposta dissertativa",
                     "items": { 
                       "type": "object", 
                       "required": ["respostaId","pontuacao"], 
                       "properties": { 
-                        "respostaId": { "type": "string", "format": "uuid" }, 
-                        "pontuacao": { "type": "number" },
-                        "feedback": { "type": "string", "description": "Feedback personalizado para o aluno" }
+                        "respostaId": { "type": "string", "format": "uuid", "description": "ID da resposta a ser avaliada" }, 
+                        "pontuacao": { "type": "number", "minimum": 0, "description": "Pontuação atribuída respeitando o peso da questão" },
+                        "feedback": { "type": "string", "description": "Feedback personalizado para o aluno (persistido na tabela respostas)" }
                       } 
                     } 
                   } 
@@ -868,15 +845,16 @@ export const openapiSpec = {
         }, 
         "responses": { 
           "200": { 
-            "description": "Revisão aplicada", 
+            "description": "Revisão aplicada com sucesso. Tentativa finalizada e eventos publicados.", 
             "content": { 
               "application/json": { 
                 "schema": { 
                   "type": "object", 
                   "properties": { 
-                    "tentativa": { "$ref": "#/components/schemas/Attempt" }, 
-                    "nota_final": { "type": "number" }, 
-                    "aprovado": { "type": "boolean" }, 
+                    "tentativa_id": { "type": "string", "format": "uuid" },
+                    "nota": { "type": "number", "description": "Nota final recalculada (0-100)" }, 
+                    "aprovado": { "type": "boolean", "description": "Se aprovado baseado na nota mínima" }, 
+                    "total_scores_aplicados": { "type": "integer", "description": "Quantas respostas foram avaliadas" },
                     "mensagem": { "type": "string" } 
                   } 
                 } 
@@ -1035,27 +1013,33 @@ export const openapiSpec = {
       "Attempt": {
         "type": "object",
         "required": ["id", "funcionario_id", "avaliacao_id", "data_inicio", "status", "criado_em"],
+        "description": "Tentativa de avaliação. Status PENDENTE_REVISAO quando há questões dissertativas. Nota calculada respeitando pesos das questões.",
         "properties": {
           "id": { "type": "string", "format": "uuid" },
           "funcionario_id": { "type": "string", "format": "uuid" },
           "avaliacao_id": { "type": "string" },
           "data_inicio": { "type": "string", "format": "date-time" },
           "data_fim": { "type": "string", "format": "date-time", "nullable": true },
-          "nota_obtida": { "type": "number", "nullable": true },
-          "status": { "type": "string", "enum": ["EM_ANDAMENTO", "FINALIZADA", "APROVADO", "REPROVADO", "PENDENTE_REVISAO", "EXPIRADA"] },
+          "nota_obtida": { "type": "number", "nullable": true, "description": "Nota final (0-100) calculada com peso das questões" },
+          "status": { 
+            "type": "string", 
+            "enum": ["EM_ANDAMENTO", "FINALIZADA", "APROVADO", "REPROVADO", "PENDENTE_REVISAO", "EXPIRADA"],
+            "description": "Status: PENDENTE_REVISAO para dissertativas, APROVADO/REPROVADO após correção completa"
+          },
           "criado_em": { "type": "string", "format": "date-time" }
         }
       },
       "Answer": {
         "type": "object",
         "required": ["id", "tentativa_id", "questao_id", "criado_em"],
+        "description": "Resposta do aluno. Constraint única (tentativa_id, questao_id) evita duplicatas. Feedback e pontuação preenchidos pelo instrutor para dissertativas.",
         "properties": {
           "id": { "type": "string", "format": "uuid" },
           "tentativa_id": { "type": "string", "format": "uuid" },
           "questao_id": { "type": "string", "format": "uuid" },
-          "resposta_funcionario": { "type": "string", "nullable": true },
-          "pontuacao": { "type": "number", "nullable": true },
-          "feedback": { "type": "string", "nullable": true, "description": "Feedback do instrutor para questões dissertativas" },
+          "resposta_funcionario": { "type": "string", "nullable": true, "description": "Resposta fornecida pelo aluno" },
+          "pontuacao": { "type": "number", "nullable": true, "description": "Pontuação: automática para objetivas, manual para dissertativas" },
+          "feedback": { "type": "string", "nullable": true, "description": "Feedback do instrutor persistido na resposta (v1.6.0)" },
           "criado_em": { "type": "string", "format": "date-time" }
         }
       },
