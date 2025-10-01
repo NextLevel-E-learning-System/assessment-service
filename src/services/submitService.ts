@@ -39,25 +39,30 @@ export async function gradeSubmission(input: GradeInput) {
     });
   }
 
-  // Calcula nota
+  // Calcula nota considerando TODAS as questões da avaliação
   const questoes = await listQuestions(input.codigo);
   const respostasMap = new Map(input.respostas.map(r => [r.questao_id, r.resposta]));
-  let totalPeso = 0, pontosObtidos = 0, temDissertativa = false;
+  let totalPesoGeral = 0, pontosObtidosObjetivas = 0, temDissertativa = false;
   
   for (const q of questoes) {
     const peso = q.peso || 1; 
-    totalPeso += peso;
+    totalPesoGeral += peso; // Peso de TODAS as questões (objetivas + dissertativas)
     const resp = respostasMap.get(q.id); 
     if (!resp) continue;
     
     if (q.tipo === 'MULTIPLA_ESCOLHA' || q.tipo === 'VERDADEIRO_FALSO') {
-      if (q.resposta_correta && resp === q.resposta_correta) pontosObtidos += peso;
+      // Apenas questões objetivas contam pontos agora
+      if (q.resposta_correta && resp === q.resposta_correta) {
+        pontosObtidosObjetivas += peso;
+      }
     } else if (q.tipo === 'DISSERTATIVA') {
       temDissertativa = true;
+      // Dissertativas não contam pontos ainda (aguarda correção manual)
     }
   }
   
-  const nota = totalPeso > 0 ? Math.round(((pontosObtidos / totalPeso) * 100) * 100) / 100 : 0;
+  // Nota proporcional: apenas das questões objetivas até a correção das dissertativas
+  const nota = totalPesoGeral > 0 ? Math.round(((pontosObtidosObjetivas / totalPesoGeral) * 100) * 100) / 100 : 0;
   const notaMin = assessment.nota_minima ? Number(assessment.nota_minima) : 0;
   const aprovado = !temDissertativa && nota >= notaMin;
   const status = temDissertativa ? 'PENDENTE_REVISAO' : (aprovado ? 'APROVADO' : 'REPROVADO');

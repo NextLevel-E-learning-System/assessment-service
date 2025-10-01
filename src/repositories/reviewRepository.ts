@@ -53,22 +53,22 @@ export async function applyReview(attemptId: string, scores: ReviewScoreInput[])
         );
       }
 
-      // Recalcular nota total
+      // Recalcular nota total da tentativa (incluindo todas as questões)
       const agg = await c.query(`
         select 
-          coalesce(sum(coalesce(r.pontuacao, 0)), 0) as soma, 
-          coalesce(sum(q.peso), 0) as soma_pesos
+          coalesce(sum(case 
+            when q.tipo_questao = 'DISSERTATIVA' and r.pontuacao is not null then r.pontuacao
+            when q.tipo_questao in ('MULTIPLA_ESCOLHA', 'VERDADEIRO_FALSO') and r.pontuacao is not null then r.pontuacao
+            else 0
+          end), 0) as soma_pontos, 
+          coalesce(sum(q.peso), 0) as soma_pesos_total
         from assessment_service.respostas r
         join assessment_service.questoes q on q.id = r.questao_id
-        where r.tentativa_id = $1 
-        and (
-          q.tipo_questao in ('MULTIPLA_ESCOLHA', 'VERDADEIRO_FALSO') 
-          or (q.tipo_questao = 'DISSERTATIVA' and r.pontuacao is not null)
-        )
+        where r.tentativa_id = $1
       `, [attemptId]);
 
-      const { soma, soma_pesos } = agg.rows[0];
-      const nota = (Number(soma_pesos) > 0) ? (Number(soma) / Number(soma_pesos)) * 100 : 0;
+      const { soma_pontos, soma_pesos_total } = agg.rows[0];
+      const nota = (Number(soma_pesos_total) > 0) ? (Number(soma_pontos) / Number(soma_pesos_total)) * 100 : 0;
       
       await c.query(
         'update assessment_service.tentativas set nota_obtida = $2 where id = $1',
@@ -87,12 +87,13 @@ export async function applyReview(attemptId: string, scores: ReviewScoreInput[])
 export async function finalizeReviewedAttempt(attemptId: string, notaMin: number) {
   return withClient(async c => {
     const t = await c.query(
-      'select nota_obtida from assessment_service.tentativas where id = $1',
+      'select nota_obtida, funcionario_id, avaliacao_id from assessment_service.tentativas where id = $1',
       [attemptId]
     );
     if (t.rowCount === 0) return null;
     
-    const nota = Number(t.rows[0].nota_obtida) || 0;
+    const { nota_obtida, funcionario_id, avaliacao_id } = t.rows[0];
+    const nota = Number(nota_obtida) || 0;
     const aprovado = nota >= notaMin;
     
     await c.query(
@@ -100,7 +101,7 @@ export async function finalizeReviewedAttempt(attemptId: string, notaMin: number
       [attemptId, aprovado ? 'APROVADO' : 'REPROVADO']
     );
     
-    return { nota, aprovado };
+    return { nota, aprovado, funcionario_id, avaliacao_id };
   });
 }
 

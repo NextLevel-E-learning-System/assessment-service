@@ -87,8 +87,26 @@ export async function reviewAttemptHandler(req: Request, res: Response) {
     // Aplicar notas e feedback (simplificado)
     await applyReview(attemptId, scores);
     
-    // Finalizar tentativa
+    // Finalizar tentativa e publicar eventos
     const final = await finalizeReviewedAttempt(attemptId, notaMinima);
+    
+    if (final) {
+      // Publicar evento após correção dissertativa completa
+      const { publishEvent } = await import('../events/publisher.js');
+      const { findByCodigo } = await import('../repositories/assessmentRepository.js');
+      
+      const assessment = await findByCodigo(final.avaliacao_id);
+      if (assessment) {
+        const payload = { 
+          assessmentCode: assessment.codigo, 
+          courseId: assessment.curso_id, 
+          userId: final.funcionario_id, 
+          score: final.nota, 
+          passed: final.aprovado 
+        };
+        await publishEvent(final.aprovado ? 'assessment.passed.v1' : 'assessment.failed.v1', payload);
+      }
+    }
     
     return res.json({ 
       tentativa_id: attemptId, 
