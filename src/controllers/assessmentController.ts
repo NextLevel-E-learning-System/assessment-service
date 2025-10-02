@@ -7,9 +7,8 @@ import {
   deleteAssessment,
   listAssessments,
   addQuestion, 
-  getQuestions, 
-  addAlternative, 
-  getAlternatives 
+  getQuestions 
+  // REMOVIDO: addAlternative, getAlternatives
 } from '../services/assessmentService.js';
 import { HttpError } from '../utils/httpError.js';
 
@@ -104,31 +103,5 @@ export async function listQuestionsHandler(req: Request, res: Response, next: Ne
   }
 }
 
-interface AddAlternativePayload {
-  questao_id: string;
-  texto: string;
-  correta: boolean;
-}
-
-export async function addAlternativeHandler(req: Request, res: Response, next: NextFunction) {
-  try {
-    const payload: AddAlternativePayload = {
-      questao_id: req.params.questaoId,
-      texto: req.body.texto,
-      correta: !!req.body.correta
-    };
-    const result = await addAlternative(payload);
-    res.status(201).json(result);
-  } catch (e) {
-    next(e);
-  }
-}
-
-export async function listAlternativesHandler(req: Request, res: Response, next: NextFunction) {
-  try {
-    const result = await getAlternatives(req.params.questaoId);
-    res.json(result);
-  } catch (e) {
-    next(e);
-  }
-}
+// REMOVIDO: addAlternativeHandler e listAlternativesHandler
+// As alternativas agora são gerenciadas automaticamente junto com as questões

@@ -2,8 +2,13 @@ export const openapiSpec = {
   "openapi": "3.0.3",
   "info": { 
     "title": "Assessment Service API", 
-    "version": "1.6.0",
-    "description": `API para gerenciamento de avaliações com suporte completo a questões dissertativas e cálculo de notas.
+    "version": "1.7.0",
+    "description": `API simplificada para gerenciamento de avaliações. 
+MUDANÇAS v1.7.0:
+- Questões agora incluem alternativas automaticamente
+- Endpoints de alternativas removidos (consolidados em questões)
+- Endpoints redundantes de CRUD removidos
+- Foco em endpoints essenciais para frontend
 `
   },
   "paths": {
@@ -185,62 +190,7 @@ export const openapiSpec = {
             }
           }
         }
-      },
-      "post": { 
-        "summary": "Submeter respostas (avaliar)", 
-        "tags": ["submissions"], 
-        "parameters": [{ "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } }], 
-        "requestBody": { 
-          "required": true, 
-          "content": { 
-            "application/json": { 
-              "schema": { 
-                "type": "object", 
-                "required": ["userId","attemptId","respostas"], 
-                "properties": { 
-                  "userId": { "type": "string" }, 
-                  "attemptId": { "type": "string" }, 
-                  "respostas": { 
-                    "type": "array", 
-                    "items": { 
-                      "type": "object", 
-                      "required": ["questao_id","resposta"], 
-                      "properties": { 
-                        "questao_id": { "type": "string" }, 
-                        "resposta": { "type": "string" } 
-                      } 
-                    } 
-                  } 
-                } 
-              } 
-            } 
-          } 
-        }, 
-        "responses": { 
-          "200": { 
-            "description": "Avaliação submetida", 
-            "content": { 
-              "application/json": { 
-                "schema": { 
-                  "type": "object", 
-                  "properties": { 
-                    "resultado": { "$ref": "#/components/schemas/SubmissionResult" }, 
-                    "mensagem": { "type": "string" } 
-                  } 
-                } 
-              } 
-            } 
-          }, 
-          "404": { 
-            "description": "Avaliação não encontrada", 
-            "content": { 
-              "application/json": { 
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" } 
-              } 
-            } 
-          } 
-        } 
-      } 
+      }
     },
     "/assessments/v1/{codigo}/questions": { 
       "post": { 
@@ -291,21 +241,18 @@ export const openapiSpec = {
         } 
       }, 
       "get": { 
-        "summary": "Listar questões", 
+        "summary": "Listar questões com alternativas", 
+        "description": "NOVO v1.7.0: Retorna questões com alternativas incluídas automaticamente",
         "tags": ["questions"], 
         "parameters": [{ "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } }], 
         "responses": { 
           "200": { 
-            "description": "Lista de questões", 
+            "description": "Lista de questões com alternativas", 
             "content": { 
               "application/json": { 
                 "schema": { 
-                  "type": "object", 
-                  "properties": { 
-                    "questoes": { "type": "array", "items": { "$ref": "#/components/schemas/Question" } }, 
-                    "total": { "type": "integer" }, 
-                    "mensagem": { "type": "string" } 
-                  } 
+                  "type": "array", 
+                  "items": { "$ref": "#/components/schemas/QuestionWithAlternatives" }
                 } 
               } 
             } 
@@ -702,74 +649,6 @@ export const openapiSpec = {
         }
       }
     },
-    "/assessments/v1/questions/{questaoId}/alternatives": { 
-      "post": { 
-        "summary": "Adicionar alternativa", 
-        "tags": ["alternatives"], 
-        "parameters": [{ "name": "questaoId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }], 
-        "requestBody": { 
-          "required": true, 
-          "content": { 
-            "application/json": { 
-              "schema": { 
-                "type": "object", 
-                "required": ["texto","correta"], 
-                "properties": { 
-                  "texto": { "type": "string" }, 
-                  "correta": { "type": "boolean" } 
-                } 
-              } 
-            } 
-          } 
-        }, 
-        "responses": { 
-          "201": { 
-            "description": "Alternativa criada", 
-            "content": { 
-              "application/json": { 
-                "schema": { 
-                  "type": "object", 
-                  "properties": { 
-                    "alternativa": { "$ref": "#/components/schemas/Alternative" }, 
-                    "mensagem": { "type": "string" } 
-                  } 
-                } 
-              } 
-            } 
-          }, 
-          "404": { 
-            "description": "Questão não encontrada", 
-            "content": { 
-              "application/json": { 
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" } 
-              } 
-            } 
-          } 
-        } 
-      }, 
-      "get": { 
-        "summary": "Listar alternativas", 
-        "tags": ["alternatives"], 
-        "parameters": [{ "name": "questaoId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }], 
-        "responses": { 
-          "200": { 
-            "description": "Lista de alternativas", 
-            "content": { 
-              "application/json": { 
-                "schema": { 
-                  "type": "object", 
-                  "properties": { 
-                    "alternativas": { "type": "array", "items": { "$ref": "#/components/schemas/Alternative" } }, 
-                    "total": { "type": "integer" }, 
-                    "mensagem": { "type": "string" } 
-                  } 
-                } 
-              } 
-            } 
-          } 
-        } 
-      } 
-    },
     "/assessments/v1/attempts/{attemptId}/dissertative": { 
       "get": { 
         "summary": "Listar respostas dissertativas para revisão", 
@@ -1000,11 +879,31 @@ export const openapiSpec = {
           "peso": { "type": "number" }
         }
       },
+      "QuestionWithAlternatives": {
+        "type": "object",
+        "required": ["id", "assessment_codigo", "enunciado", "tipo", "opcoes_resposta", "peso", "alternatives"],
+        "description": "NOVO v1.7.0: Questão com alternativas incluídas automaticamente",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "assessment_codigo": { "type": "string" },
+          "enunciado": { "type": "string" },
+          "tipo": { "type": "string", "enum": ["MULTIPLA_ESCOLHA", "VERDADEIRO_FALSO", "DISSERTATIVA"] },
+          "opcoes_resposta": { "type": "array", "items": { "type": "string" } },
+          "resposta_correta": { "type": "string", "nullable": true },
+          "peso": { "type": "number" },
+          "alternatives": { 
+            "type": "array", 
+            "items": { "$ref": "#/components/schemas/Alternative" },
+            "description": "Alternativas derivadas de opcoes_resposta"
+          }
+        }
+      },
       "Alternative": {
         "type": "object",
         "required": ["id", "questao_id", "texto", "correta"],
+        "description": "DEPRECIADO v1.7.0: Mantido apenas para compatibilidade, derivado de opcoes_resposta",
         "properties": {
-          "id": { "type": "string" },
+          "id": { "type": "string", "description": "Para compatibilidade, usa o próprio texto como ID" },
           "questao_id": { "type": "string", "format": "uuid" },
           "texto": { "type": "string" },
           "correta": { "type": "boolean" }

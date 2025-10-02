@@ -5,12 +5,9 @@ import {
   deleteAssessmentDb,
   listAssessmentsByCourse,
   insertQuestion, 
-  listQuestions, 
-  insertAlternative, 
-  listAlternatives, 
+  listQuestionsWithAlternatives, // Mudado para a versão com alternativas
   NewAssessment, 
   NewQuestion, 
-  NewAlternative,
   UpdateAssessmentData 
 } from '../repositories/assessmentRepository.js';
 import { HttpError } from '../utils/httpError.js';
@@ -62,15 +59,10 @@ export async function addQuestion(d: NewQuestion) {
   return { id };
 }
 
+// Agora retorna questões com alternativas automaticamente
 export async function getQuestions(assessmentCodigo: string) {
-  return listQuestions(assessmentCodigo);
+  return listQuestionsWithAlternatives(assessmentCodigo);
 }
 
-export async function addAlternative(d: NewAlternative) {
-  const id = await insertAlternative(d);
-  return { id };
-}
-
-export async function getAlternatives(questaoId: string) {
-  return listAlternatives(questaoId);
-}
+// REMOVIDO: addAlternative e getAlternatives
+// As alternativas agora são gerenciadas diretamente nas questões

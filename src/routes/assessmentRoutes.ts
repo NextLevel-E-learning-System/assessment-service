@@ -6,28 +6,20 @@ import {
   updateAssessmentHandler,
   deleteAssessmentHandler,
   addQuestionHandler, 
-  listQuestionsHandler, 
-  addAlternativeHandler, 
-  listAlternativesHandler 
+  listQuestionsHandler
+  // REMOVIDO: addAlternativeHandler, listAlternativesHandler
 } from '../controllers/assessmentController.js';
 import { submitAssessmentHandler } from '../controllers/submitController.js';
 import { 
   startAttemptHandler, 
-  createAttemptHandler, 
   getAttemptHandler, 
-  listAttemptsByUserHandler, 
-  listAttemptsByAssessmentHandler
-  // REMOVIDO: updateAttemptHandler, deleteAttemptHandler, finalizeAttemptHandler
+  listAttemptsByUserHandler
+  // REMOVIDO: createAttemptHandler, listAttemptsByAssessmentHandler (redundantes)
 } from '../controllers/attemptController.js';
 import { 
-  createAnswerHandler, 
   upsertAnswerHandler, 
-  getAnswerHandler, 
-  listAnswersByAttemptHandler, 
-  listAnswersByQuestionHandler, 
-  getAttemptStatisticsHandler,
-  calculateAttemptScoreHandler
-  // REMOVIDO: updateAnswerHandler, deleteAnswerHandler
+  listAnswersByAttemptHandler
+  // REMOVIDO: createAnswerHandler (redundante com upsert), getAnswerHandler, listAnswersByQuestionHandler, getAttemptStatisticsHandler, calculateAttemptScoreHandler (desnecessários para frontend)
 } from '../controllers/answerController.js';
 import { 
   listDissertativeHandler, 
@@ -38,64 +30,32 @@ import {
 
 export const assessmentRouter = Router();
 
-// ===== ROTAS DE AVALIAÇÕES =====
+// ===== ROTAS PRINCIPAIS DE AVALIAÇÕES =====
 assessmentRouter.post('/', createAssessmentHandler);
 assessmentRouter.get('/', listAssessmentsHandler); // Lista com filtro por curso_id
 assessmentRouter.get('/:codigo', getAssessmentHandler);
 assessmentRouter.put('/:codigo', updateAssessmentHandler); 
 assessmentRouter.delete('/:codigo', deleteAssessmentHandler); 
 
-// ===== ROTAS DE QUESTÕES =====
-// Validação de edição controlada pelo FRONTEND baseada em 'total_inscricoes' do course service
-assessmentRouter.post('/:codigo/questions', addQuestionHandler); // Frontend bloqueia se total_inscricoes > 0
-assessmentRouter.get('/:codigo/questions', listQuestionsHandler);
+// ===== ROTAS DE QUESTÕES (COM ALTERNATIVAS INCLUÍDAS) =====
+assessmentRouter.post('/:codigo/questions', addQuestionHandler); 
+assessmentRouter.get('/:codigo/questions', listQuestionsHandler); // Agora inclui alternativas automaticamente
 
-// ===== ROTAS DE ALTERNATIVAS =====
-// Validação de edição controlada pelo FRONTEND baseada em 'total_inscricoes' do course service
-assessmentRouter.post('/questions/:questaoId/alternatives', addAlternativeHandler); // Frontend bloqueia se total_inscricoes > 0
-assessmentRouter.get('/questions/:questaoId/alternatives', listAlternativesHandler);
-
-
+// ===== ROTAS DE TENTATIVAS SIMPLIFICADAS =====
 // Início de tentativa controlado (com regras de negócio)
 assessmentRouter.post('/:codigo/attempts/start', startAttemptHandler);
-
-// CRUD de tentativas - APENAS CREATE e READ
-assessmentRouter.post('/attempts', createAttemptHandler);
 assessmentRouter.get('/attempts/:id', getAttemptHandler);
-// REMOVIDO: PUT, DELETE, FINALIZE
-
-// Listagem de tentativas
 assessmentRouter.get('/users/:funcionario_id/attempts', listAttemptsByUserHandler);
-assessmentRouter.get('/avaliacoes/:avaliacao_id/attempts', listAttemptsByAssessmentHandler);
 
-// ===== ROTAS DE RESPOSTAS =====
-// APENAS LEITURA E CRIAÇÃO - RESPOSTAS NÃO PODEM SER EDITADAS OU DELETADAS
-
-assessmentRouter.post('/answers', createAnswerHandler);
-assessmentRouter.post('/answers/upsert', upsertAnswerHandler); // Permitido para salvar rascunhos durante tentativa
-assessmentRouter.get('/answers/:id', getAnswerHandler);
-// REMOVIDO: PUT, DELETE
-
-// Listagem de respostas
+// ===== ROTAS DE RESPOSTAS SIMPLIFICADAS =====
+assessmentRouter.post('/answers/upsert', upsertAnswerHandler); // Único endpoint necessário para salvar respostas
 assessmentRouter.get('/attempts/:tentativa_id/answers', listAnswersByAttemptHandler);
-assessmentRouter.get('/questions/:questao_id/answers', listAnswersByQuestionHandler);
 
-// ===== ROTAS DE ESTATÍSTICAS =====
-assessmentRouter.get('/attempts/:tentativa_id/statistics', getAttemptStatisticsHandler);
-assessmentRouter.get('/attempts/:tentativa_id/score', calculateAttemptScoreHandler);
-
-// ===== ROTAS DE SUBMISSÃO E REVISÃO =====
+// ===== SUBMISSÃO E CORREÇÃO =====
 assessmentRouter.post('/:codigo/submit', submitAssessmentHandler);
 
-// ===== ROTAS DE CORREÇÃO DISSERTATIVA (R16) =====
-// Listar respostas dissertativas para correção
+// ===== CORREÇÃO DISSERTATIVA (R16) =====
 assessmentRouter.get('/attempts/:attemptId/dissertative', listDissertativeHandler);
-
-// Aplicar correção com feedback personalizado
 assessmentRouter.patch('/attempts/:attemptId/review', reviewAttemptHandler);
-
-// Feedback específico de uma resposta (agora direto da tabela respostas)
 assessmentRouter.get('/answers/:respostaId/feedback', getAnswerFeedbackHandler);
-
-// Fila de correções pendentes
 assessmentRouter.get('/reviews/pending', listPendingReviewsHandler);

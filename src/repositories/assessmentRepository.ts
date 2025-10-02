@@ -127,6 +127,11 @@ export async function insertQuestion(q:NewQuestion): Promise<string>{
 	});
 }
 
+// Questões com alternativas incluídas para simplificar frontend
+export interface QuestionWithAlternatives extends Question {
+  alternatives: Alternative[];
+}
+
 export async function listQuestions(assessmentCodigo:string): Promise<Question[]>{
 	return withClient(async c=>{
 		const r = await c.query(
@@ -143,6 +148,37 @@ export async function listQuestions(assessmentCodigo:string): Promise<Question[]
 			resposta_correta: row.resposta_correta,
 			peso: Number(row.peso) || 1
 		}));
+	});
+}
+
+export async function listQuestionsWithAlternatives(assessmentCodigo:string): Promise<QuestionWithAlternatives[]>{
+	return withClient(async c=>{
+		const r = await c.query(
+			`select id, avaliacao_id as assessment_codigo, enunciado, tipo_questao as tipo, opcoes_resposta, resposta_correta, peso
+			 from ${TABLE_QUESTOES} where avaliacao_id=$1 order by id`,
+			[assessmentCodigo]
+		);
+		return r.rows.map(row=>{
+			const opts:string[] = row.opcoes_resposta || [];
+			const correta = row.resposta_correta;
+			const alternatives = opts.map(txt=>({ 
+				id: txt, 
+				questao_id: row.id, 
+				texto: txt, 
+				correta: txt===correta 
+			}));
+			
+			return {
+				id: row.id,
+				assessment_codigo: row.assessment_codigo,
+				enunciado: row.enunciado,
+				tipo: row.tipo,
+				opcoes_resposta: row.opcoes_resposta || [],
+				resposta_correta: row.resposta_correta,
+				peso: Number(row.peso) || 1,
+				alternatives
+			};
+		});
 	});
 }
 
