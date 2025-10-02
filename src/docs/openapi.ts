@@ -2,20 +2,20 @@ export const openapiSpec = {
   "openapi": "3.0.3",
   "info": { 
     "title": "Assessment Service API", 
-    "version": "1.8.0",
-    "description": `API consolidada para gerenciamento de avaliações com fluxos otimizados.
+  "version": "1.9.0",
+  "description": `API consolidada para gerenciamento de avaliações com fluxos otimizados.
 
-NOVIDADES v1.8.0:
-- Endpoints consolidados que eliminam múltiplas chamadas HTTP
-- Fluxo completo de avaliação em 1-2 requests
-- Gestão automática de tentativas, respostas e correções
-- Performance otimizada para frontend
+NOVIDADES v1.9.0:
+- Removida lógica de 'recuperação' (não existe no domínio)
+- Campo pode_recuperacao removido
+- Soft delete de avaliações (DELETE => ativo=false)
+- Endpoints para editar / remover questões adicionados
 
 PRINCIPAIS ENDPOINTS:
-- POST /{codigo}/start-complete: Inicia avaliação com todos os dados
-- POST /submit-complete: Submete avaliação completa
-- GET /attempts/{id}/review-complete: Revisão consolidada
-- POST /attempts/{id}/finalize-review: Finaliza correção
+- POST /{codigo}/start-complete
+- POST /submit-complete
+- GET /attempts/{id}/review-complete
+- POST /attempts/{id}/finalize-review
 `
   },
   "paths": {
@@ -171,18 +171,19 @@ PRINCIPAIS ENDPOINTS:
         }
       },
       "delete": {
-        "summary": "Deletar avaliação",
+        "summary": "Inativar avaliação (soft delete)",
         "tags": ["assessments"],
         "parameters": [{ "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
           "200": {
-            "description": "Avaliação deletada",
+            "description": "Avaliação inativada",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "mensagem": { "type": "string" }
+                    "mensagem": { "type": "string" },
+                    "inativado": { "type": "boolean" }
                   }
                 }
               }
@@ -266,6 +267,27 @@ PRINCIPAIS ENDPOINTS:
           } 
         } 
       } 
+    },
+    "/assessments/v1/{codigo}/questions/{id}": {
+      "put": {
+        "summary": "Atualizar questão",
+        "tags": ["questions"],
+        "parameters": [
+          { "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateQuestionRequest" } } } },
+        "responses": { "200": { "description": "Questão atualizada" }, "404": { "description": "Questão não encontrada" } }
+      },
+      "delete": {
+        "summary": "Remover questão",
+        "tags": ["questions"],
+        "parameters": [
+          { "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": { "200": { "description": "Questão removida" }, "404": { "description": "Questão não encontrada" } }
+      }
     },
     "/assessments/v1/{codigo}/start-complete": {
       "post": {
@@ -1228,8 +1250,7 @@ PRINCIPAIS ENDPOINTS:
             "type": "array",
             "items": { "$ref": "#/components/schemas/QuestionWithAlternatives" }
           },
-          "tentativas_anteriores": { "type": "integer" },
-          "pode_recuperacao": { "type": "boolean" }
+          "tentativas_anteriores": { "type": "integer" }
         }
       },
       "SubmitAssessmentRequest": {
@@ -1345,6 +1366,16 @@ PRINCIPAIS ENDPOINTS:
               ]
             }
           }
+        }
+      },
+      "UpdateQuestionRequest": {
+        "type": "object",
+        "properties": {
+          "enunciado": { "type": "string" },
+          "tipo": { "type": "string", "enum": ["MULTIPLA_ESCOLHA", "VERDADEIRO_FALSO", "DISSERTATIVA"] },
+            "opcoes_resposta": { "type": "array", "items": { "type": "string" } },
+          "resposta_correta": { "type": "string", "nullable": true },
+          "peso": { "type": "number" }
         }
       }
     }

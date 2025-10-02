@@ -6,6 +6,8 @@ import {
   listAssessmentsByCourse,
   insertQuestion, 
   listQuestionsWithAlternatives,
+  updateQuestionDb,
+  deleteQuestionDb,
   NewAssessment, 
   NewQuestion, 
   UpdateAssessmentData 
@@ -46,11 +48,11 @@ export async function updateAssessment(codigo: string, data: UpdateAssessmentDat
 }
 
 export async function deleteAssessment(codigo: string) {
-  const deleted = await deleteAssessmentDb(codigo);
-  if (!deleted) {
-    throw new HttpError(404, 'nao_encontrado');
+  const inactivated = await deleteAssessmentDb(codigo);
+  if (!inactivated) {
+    throw new HttpError(404, 'nao_encontrado_ou_ja_inativo');
   }
-  return { codigo, removido: true };
+  return { codigo, inativado: true };
 }
 
 export async function addQuestion(d: NewQuestion) {
@@ -61,4 +63,17 @@ export async function addQuestion(d: NewQuestion) {
 // Retorna questões com alternativas automaticamente
 export async function getQuestions(assessmentCodigo: string) {
   return listQuestionsWithAlternatives(assessmentCodigo);
+}
+
+// ==== NOVOS SERVIÇOS DE QUESTÃO ====
+export async function updateQuestion(id:string, data: Parameters<typeof updateQuestionDb>[1]) {
+  const ok = await updateQuestionDb(id, data);
+  if (!ok) throw new HttpError(404, 'questao_nao_encontrada');
+  return { id, atualizado: true };
+}
+
+export async function deleteQuestion(id:string) {
+  const ok = await deleteQuestionDb(id);
+  if (!ok) throw new HttpError(404, 'questao_nao_encontrada');
+  return { id, removido: true };
 }

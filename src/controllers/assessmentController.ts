@@ -7,8 +7,9 @@ import {
   deleteAssessment,
   listAssessments,
   addQuestion, 
-  getQuestions 
-  // REMOVIDO: addAlternative, getAlternatives
+  getQuestions,
+  updateQuestion,
+  deleteQuestion
 } from '../services/assessmentService.js';
 import { HttpError } from '../utils/httpError.js';
 
@@ -97,6 +98,27 @@ export async function addQuestionHandler(req: Request, res: Response, next: Next
 export async function listQuestionsHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await getQuestions(req.params.codigo);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function updateQuestionHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { enunciado, opcoes_resposta, resposta_correta, peso, tipo } = req.body;
+    const result = await updateQuestion(id, { enunciado, opcoes_resposta, resposta_correta, peso, tipo });
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function deleteQuestionHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const result = await deleteQuestion(id);
     res.json(result);
   } catch (e) {
     next(e);

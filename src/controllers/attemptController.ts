@@ -34,41 +34,25 @@ export async function startAttemptHandler(req: Request, res: Response, next: Nex
       }
     }
     
-    // Regra de tentativas e recuperação
+    // Regra de tentativas (sem recuperação)
     const attempts = await listAttemptsForUser(assessment.codigo, userId);
     const finalizadas = attempts.filter(a => ['APROVADO', 'REPROVADO', 'PENDENTE_REVISAO', 'EXPIRADA'].includes(a.status));
-    const aprovadas = finalizadas.filter(a => a.status === 'APROVADO');
-    if (aprovadas.length > 0) throw new HttpError(409, 'already_passed');
-    
+    if (finalizadas.some(a => a.status === 'APROVADO')) throw new HttpError(409, 'already_passed');
     const tentativasPermitidas = assessment.tentativas_permitidas || 1;
-    const regularesUsadas = finalizadas.length;
-    const menorNota = finalizadas.length ? Math.min(...finalizadas.filter(a => a.nota !== null).map(a => a.nota as number).concat([Infinity])) : null;
-    const podeRecuperacao = (menorNota !== null && menorNota < 70) || (finalizadas.length > 0 && finalizadas.every(a => (a.nota ?? 0) < 70));
-    
-    let isRecovery = false;
-    if (regularesUsadas >= tentativasPermitidas) {
-      const jaRecuperacao = attempts.some(a => a.isRecovery);
-      if (!jaRecuperacao && podeRecuperacao) {
-        isRecovery = true;
-      } else {
-        throw new HttpError(409, 'attempt_limit_reached');
-      }
-    }
-    
-    // USANDO função consolidada do attemptRepository
+    if (finalizadas.length >= tentativasPermitidas) throw new HttpError(409, 'attempt_limit_reached');
+
+    // Inicia tentativa sempre EM_ANDAMENTO
     const started = await attemptRepository.startAttempt(
-      assessment.codigo, 
-      userId, 
-      assessment.tempo_limite || null, 
-      isRecovery ? 'EM_ANDAMENTO_RECUPERACAO' : 'EM_ANDAMENTO'
+      assessment.codigo,
+      userId,
+      assessment.tempo_limite || null
     );
     
     res.status(201).json({ 
       attemptId: started.id, 
       assessment: assessment.codigo, 
       startedAt: started.data_inicio, 
-      deadline: started.deadline, 
-      recovery: isRecovery 
+      deadline: started.deadline
     });
   } catch (e) { 
     next(e); 

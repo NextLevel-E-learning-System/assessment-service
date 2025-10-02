@@ -105,12 +105,9 @@ export async function updateAssessmentDb(codigo: string, data: UpdateAssessmentD
 
 export async function deleteAssessmentDb(codigo: string): Promise<boolean> {
   return withClient(async c => {
-    // Primeiro deletar questões relacionadas (que por sua vez deletam respostas via FK CASCADE)
-    await c.query('DELETE FROM assessment_service.questoes WHERE avaliacao_id = $1', [codigo]);
-    
-    // Depois deletar a avaliação
-    const result = await c.query(`DELETE FROM ${TABLE_AVALIACOES} WHERE codigo = $1`, [codigo]);
-    return (result.rowCount || 0) > 0;
+    // ALTERADO: não deletamos fisicamente a avaliação; apenas marcamos como inativa
+    const result = await c.query(`UPDATE ${TABLE_AVALIACOES} SET ativo = false, atualizado_em = NOW() WHERE codigo = $1 AND ativo = true`, [codigo]);
+    return (result.rowCount || 0) > 0; // true se foi inativada agora (era ativa antes)
   });
 }
 
@@ -161,6 +158,35 @@ export async function listQuestionsWithAlternatives(assessmentCodigo:string): Pr
 			};
 		});
 	});
+}
+
+// ==== NOVOS MÉTODOS PARA EDIÇÃO/REMOÇÃO DE QUESTÕES ====
+export interface UpdateQuestionData { enunciado?:string; opcoes_resposta?:string[]; resposta_correta?:string|null; peso?:number; tipo?: 'MULTIPLA_ESCOLHA'|'VERDADEIRO_FALSO'|'DISSERTATIVA' }
+
+export async function updateQuestionDb(id:string, data:UpdateQuestionData): Promise<boolean> {
+  return withClient(async c => {
+    // Monta SET dinâmico
+  const setParts:string[] = [];
+  const values:unknown[] = [];
+    let p = 1;
+    if (data.enunciado !== undefined){ setParts.push(`enunciado = $${p++}`); values.push(data.enunciado); }
+    if (data.opcoes_resposta !== undefined){ setParts.push(`opcoes_resposta = $${p++}`); values.push(data.opcoes_resposta); }
+    if (data.resposta_correta !== undefined){ setParts.push(`resposta_correta = $${p++}`); values.push(data.resposta_correta); }
+    if (data.peso !== undefined){ setParts.push(`peso = $${p++}`); values.push(data.peso); }
+    if (data.tipo !== undefined){ setParts.push(`tipo_questao = $${p++}`); values.push(data.tipo); }
+    if (!setParts.length) return false;
+    setParts.push('atualizado_em = NOW()');
+    values.push(id);
+    const r = await c.query(`UPDATE ${TABLE_QUESTOES} SET ${setParts.join(', ')} WHERE id = $${p}`, values);
+    return (r.rowCount||0) > 0;
+  });
+}
+
+export async function deleteQuestionDb(id:string): Promise<boolean> {
+  return withClient(async c => {
+    const r = await c.query(`DELETE FROM ${TABLE_QUESTOES} WHERE id = $1`, [id]);
+    return (r.rowCount||0) > 0;
+  });
 }
 
 // REMOVIDO: insertAlternative, listAlternatives - não são mais necessários

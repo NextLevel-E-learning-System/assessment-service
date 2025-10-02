@@ -46,10 +46,10 @@ export async function listSubmissions(assessmentCodigo:string, userId:string){
   });
 }
 
-export interface AttemptSummary { id:string; status:string; nota:number|null; isRecovery:boolean }
+export interface AttemptSummary { id:string; status:string; nota:number|null }
 export async function listAttemptsForUser(assessmentCodigo:string, userId:string): Promise<AttemptSummary[]>{
   return withClient(async c=>{
     const r = await c.query(`select id, status, nota_obtida, data_inicio from ${TABLE_TENTATIVAS} where avaliacao_id=$1 and funcionario_id=$2 order by data_inicio asc`,[assessmentCodigo,userId]);
-    return r.rows.map(row=>({ id:row.id, status:row.status, nota: row.nota_obtida !== null ? Number(row.nota_obtida) : null, isRecovery: row.status.startsWith('EM_ANDAMENTO_RECUPERACAO') || row.status.includes('RECUPERACAO') }));
+  return r.rows.map(row=>({ id:row.id, status:row.status, nota: row.nota_obtida !== null ? Number(row.nota_obtida) : null }));
   });
 }

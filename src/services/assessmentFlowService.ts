@@ -36,7 +36,6 @@ export interface StartAssessmentResponse {
     }>;
   }>;
   tentativas_anteriores: number;
-  pode_recuperacao: boolean;
 }
 
 // Interface para submeter avaliação completa
@@ -115,18 +114,14 @@ export async function startCompleteAssessment(
   }
 
   const tentativasPermitidas = avaliacao.tentativas_permitidas || 1;
-  const podeRecuperacao = finalizadas.length > 0 && 
-    finalizadas.every(t => (t.nota_obtida ?? 0) < 70);
-
-  if (finalizadas.length >= tentativasPermitidas && !podeRecuperacao) {
+  if (finalizadas.length >= tentativasPermitidas) {
     throw new HttpError(409, 'attempt_limit_reached');
   }
 
   // 4. Criar nova tentativa
   const tentativaResult = await attemptRepository.startAttempt(
     avaliacao_codigo,
-    funcionario_id,
-    podeRecuperacao ? 1 : 0 // Convertendo boolean para number conforme esperado
+    funcionario_id
   );
 
   // 5. Buscar tentativa criada pelo ID
@@ -156,8 +151,7 @@ export async function startCompleteAssessment(
       nota_minima: avaliacao.nota_minima || undefined
     },
     questoes,
-    tentativas_anteriores: finalizadas.length,
-    pode_recuperacao: podeRecuperacao
+    tentativas_anteriores: finalizadas.length
   };
 }
 

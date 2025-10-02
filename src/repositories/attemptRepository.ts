@@ -48,14 +48,13 @@ export async function createAttempt(data: CreateAttemptInput): Promise<string> {
 export async function startAttempt(
   avaliacao_id: string, 
   funcionario_id: string, 
-  tempoLimiteMinutos?: number | null, 
-  initialStatus: 'EM_ANDAMENTO' | 'EM_ANDAMENTO_RECUPERACAO' = 'EM_ANDAMENTO'
+  tempoLimiteMinutos?: number | null
 ): Promise<StartAttemptResult> {
   return withClient(async c => {
     const result = await c.query(
       `INSERT INTO ${TABLE_TENTATIVAS} (funcionario_id, avaliacao_id, status) 
        VALUES ($1, $2, $3) RETURNING id, funcionario_id, avaliacao_id, data_inicio`,
-      [funcionario_id, avaliacao_id, initialStatus]
+  [funcionario_id, avaliacao_id, 'EM_ANDAMENTO']
     );
     
     let deadline: Date | null = null;

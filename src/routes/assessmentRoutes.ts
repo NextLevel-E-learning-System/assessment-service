@@ -6,7 +6,9 @@ import {
   updateAssessmentHandler,
   deleteAssessmentHandler,
   addQuestionHandler, 
-  listQuestionsHandler
+  listQuestionsHandler,
+  updateQuestionHandler,
+  deleteQuestionHandler
 } from '../controllers/assessmentController.js';
 import {
   startCompleteAssessmentHandler,
@@ -31,6 +33,8 @@ assessmentRouter.delete('/:codigo', deleteAssessmentHandler);
 // ===== GESTÃO DE QUESTÕES =====
 assessmentRouter.post('/:codigo/questions', addQuestionHandler); 
 assessmentRouter.get('/:codigo/questions', listQuestionsHandler);
+assessmentRouter.put('/:codigo/questions/:id', updateQuestionHandler);
+assessmentRouter.delete('/:codigo/questions/:id', deleteQuestionHandler);
 
 // ===== FLUXOS CONSOLIDADOS v1.8.0 ⭐ =====
 // Inicia avaliação com TODOS os dados necessários
