@@ -27,11 +27,8 @@ export interface UpdateAssessmentData {
 
 // No schema real não existe "ordem" nem tabela de alternativas; as opções ficam em opcoes_resposta[] e a correta em resposta_correta.
 export interface NewQuestion { assessment_codigo:string; enunciado:string; tipo:'MULTIPLA_ESCOLHA'|'VERDADEIRO_FALSO'|'DISSERTATIVA'; opcoes_resposta?:string[]; resposta_correta?:string; peso?:number|null }
+// SIMPLIFICADO: Question já tem todas as informações necessárias
 export interface Question { id:string; assessment_codigo:string; enunciado:string; tipo:'MULTIPLA_ESCOLHA'|'VERDADEIRO_FALSO'|'DISSERTATIVA'; opcoes_resposta:string[]; resposta_correta:string|null; peso:number }
-
-// Interfaces de "Alternative" continuam para compatibilidade de API existente, porém são derivadas de opcoes_resposta
-export interface NewAlternative { questao_id:string; texto:string; correta:boolean }
-export interface Alternative { id:string; questao_id:string; texto:string; correta:boolean }
 
 const TABLE_AVALIACOES = 'assessment_service.avaliacoes';
 const TABLE_QUESTOES = 'assessment_service.questoes';
@@ -124,40 +121,63 @@ export async function insertQuestion(q:NewQuestion): Promise<string>{
 	});
 }
 
-// Questões com alternativas incluídas para simplificar frontend
-export interface QuestionWithAlternatives extends Question {
-  alternatives: Alternative[];
+// Nova interface: Assessment com questões incluídas
+export interface AssessmentWithQuestions extends Assessment {
+  questoes: Question[];
 }
 
-export async function listQuestionsWithAlternatives(assessmentCodigo:string): Promise<QuestionWithAlternatives[]>{
-	return withClient(async c=>{
-		const r = await c.query(
-			`select id, avaliacao_id as assessment_codigo, enunciado, tipo_questao as tipo, opcoes_resposta, resposta_correta, peso
-			 from ${TABLE_QUESTOES} where avaliacao_id=$1 order by id`,
-			[assessmentCodigo]
-		);
-		return r.rows.map(row=>{
-			const opts:string[] = row.opcoes_resposta || [];
-			const correta = row.resposta_correta;
-			const alternatives = opts.map(txt=>({ 
-				id: txt, 
-				questao_id: row.id, 
-				texto: txt, 
-				correta: txt===correta 
-			}));
-			
-			return {
-				id: row.id,
-				assessment_codigo: row.assessment_codigo,
-				enunciado: row.enunciado,
-				tipo: row.tipo,
-				opcoes_resposta: row.opcoes_resposta || [],
-				resposta_correta: row.resposta_correta,
-				peso: Number(row.peso) || 1,
-				alternatives
-			};
-		});
-	});
+// Buscar avaliação completa com todas as questões
+export async function findAssessmentWithQuestions(codigo: string): Promise<AssessmentWithQuestions | null> {
+  return withClient(async c => {
+    // 1. Buscar avaliação
+    const avaliacaoResult = await c.query(
+      `SELECT codigo, curso_id, titulo, tempo_limite, tentativas_permitidas, nota_minima, modulo_id, ativo, criado_em, atualizado_em
+       FROM ${TABLE_AVALIACOES} WHERE codigo = $1`, [codigo]);
+    
+    if (!avaliacaoResult.rows[0]) return null;
+    
+    const avaliacao = avaliacaoResult.rows[0];
+    
+    // 2. Buscar questões da avaliação
+    const questoesResult = await c.query(
+      `SELECT id, avaliacao_id as assessment_codigo, enunciado, tipo_questao as tipo, opcoes_resposta, resposta_correta, peso
+       FROM ${TABLE_QUESTOES} WHERE avaliacao_id = $1 ORDER BY criado_em`, [codigo]);
+    
+    const questoes = questoesResult.rows.map(row => ({
+      id: row.id,
+      assessment_codigo: row.assessment_codigo,
+      enunciado: row.enunciado,
+      tipo: row.tipo,
+      opcoes_resposta: row.opcoes_resposta || [],
+      resposta_correta: row.resposta_correta,
+      peso: Number(row.peso) || 1
+    }));
+    
+    return {
+      ...avaliacao,
+      questoes
+    };
+  });
+}
+
+// SIMPLIFICADO: Apenas questões sem alternatives artificiais
+export async function listQuestionsSimple(assessmentCodigo: string): Promise<Question[]> {
+  return withClient(async c => {
+    const r = await c.query(
+      `SELECT id, avaliacao_id as assessment_codigo, enunciado, tipo_questao as tipo, opcoes_resposta, resposta_correta, peso
+       FROM ${TABLE_QUESTOES} WHERE avaliacao_id = $1 ORDER BY criado_em`,
+      [assessmentCodigo]
+    );
+    return r.rows.map(row => ({
+      id: row.id,
+      assessment_codigo: row.assessment_codigo,
+      enunciado: row.enunciado,
+      tipo: row.tipo,
+      opcoes_resposta: row.opcoes_resposta || [],
+      resposta_correta: row.resposta_correta,
+      peso: Number(row.peso) || 1
+    }));
+  });
 }
 
 // ==== NOVOS MÉTODOS PARA EDIÇÃO/REMOÇÃO DE QUESTÕES ====

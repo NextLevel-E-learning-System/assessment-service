@@ -123,7 +123,7 @@ PRINCIPAIS ENDPOINTS:
             } 
           } 
         } 
-      }, 
+      },
       "put": {
         "summary": "Atualizar avaliação",
         "tags": ["assessments"],
@@ -200,6 +200,32 @@ PRINCIPAIS ENDPOINTS:
         }
       }
     },
+    "/assessments/v1/{codigo}/complete": {
+      "get": {
+        "summary": "Obter avaliação completa com questões",
+        "description": "NOVO v1.9.0: Retorna avaliação e todas as suas questões em uma única chamada",
+        "tags": ["assessments"],
+        "parameters": [{ "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "Avaliação completa encontrada",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AssessmentWithQuestions" }
+              }
+            }
+          },
+          "404": {
+            "description": "Avaliação não encontrada",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/assessments/v1/{codigo}/questions": { 
       "post": { 
         "summary": "Adicionar questão", 
@@ -249,18 +275,18 @@ PRINCIPAIS ENDPOINTS:
         } 
       }, 
       "get": { 
-        "summary": "Listar questões com alternativas", 
-        "description": "NOVO v1.7.0: Retorna questões com alternativas incluídas automaticamente",
+        "summary": "Listar questões da avaliação", 
+        "description": "ATUALIZADO v1.9.0: Retorna questões diretas, sem alternatives artificiais",
         "tags": ["questions"], 
         "parameters": [{ "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } }], 
         "responses": { 
           "200": { 
-            "description": "Lista de questões com alternativas", 
+            "description": "Lista de questões", 
             "content": { 
               "application/json": { 
                 "schema": { 
                   "type": "array", 
-                  "items": { "$ref": "#/components/schemas/QuestionWithAlternatives" }
+                  "items": { "$ref": "#/components/schemas/Question" }
                 } 
               } 
             } 
@@ -1081,35 +1107,23 @@ PRINCIPAIS ENDPOINTS:
           "peso": { "type": "number" }
         }
       },
-      "QuestionWithAlternatives": {
+      "AssessmentWithQuestions": {
         "type": "object",
-        "required": ["id", "assessment_codigo", "enunciado", "tipo", "opcoes_resposta", "peso", "alternatives"],
-        "description": "NOVO v1.7.0: Questão com alternativas incluídas automaticamente",
-        "properties": {
-          "id": { "type": "string", "format": "uuid" },
-          "assessment_codigo": { "type": "string" },
-          "enunciado": { "type": "string" },
-          "tipo": { "type": "string", "enum": ["MULTIPLA_ESCOLHA", "VERDADEIRO_FALSO", "DISSERTATIVA"] },
-          "opcoes_resposta": { "type": "array", "items": { "type": "string" } },
-          "resposta_correta": { "type": "string", "nullable": true },
-          "peso": { "type": "number" },
-          "alternatives": { 
-            "type": "array", 
-            "items": { "$ref": "#/components/schemas/Alternative" },
-            "description": "Alternativas derivadas de opcoes_resposta"
+        "required": ["codigo", "curso_id", "titulo", "ativo", "questoes"],
+        "description": "NOVO v1.9.0: Avaliação completa com questões incluídas",
+        "allOf": [
+          { "$ref": "#/components/schemas/Assessment" },
+          {
+            "type": "object",
+            "properties": {
+              "questoes": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Question" },
+                "description": "Questões da avaliação com todas as informações"
+              }
+            }
           }
-        }
-      },
-      "Alternative": {
-        "type": "object",
-        "required": ["id", "questao_id", "texto", "correta"],
-        "description": "DEPRECIADO v1.7.0: Mantido apenas para compatibilidade, derivado de opcoes_resposta",
-        "properties": {
-          "id": { "type": "string", "description": "Para compatibilidade, usa o próprio texto como ID" },
-          "questao_id": { "type": "string", "format": "uuid" },
-          "texto": { "type": "string" },
-          "correta": { "type": "boolean" }
-        }
+        ]
       },
       "Attempt": {
         "type": "object",
@@ -1248,7 +1262,7 @@ PRINCIPAIS ENDPOINTS:
           },
           "questoes": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/QuestionWithAlternatives" }
+            "items": { "$ref": "#/components/schemas/Question" }
           },
           "tentativas_anteriores": { "type": "integer" }
         }

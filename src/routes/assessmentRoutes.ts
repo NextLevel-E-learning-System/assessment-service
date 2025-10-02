@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { 
   createAssessmentHandler, 
   getAssessmentHandler, 
+  getAssessmentWithQuestionsHandler,
   listAssessmentsHandler,
   updateAssessmentHandler,
   deleteAssessmentHandler,
@@ -27,6 +28,7 @@ export const assessmentRouter = Router();
 assessmentRouter.post('/', createAssessmentHandler);
 assessmentRouter.get('/', listAssessmentsHandler);
 assessmentRouter.get('/:codigo', getAssessmentHandler);
+assessmentRouter.get('/:codigo/complete', getAssessmentWithQuestionsHandler); // NOVO: Avaliação + questões
 assessmentRouter.put('/:codigo', updateAssessmentHandler); 
 assessmentRouter.delete('/:codigo', deleteAssessmentHandler); 
 
