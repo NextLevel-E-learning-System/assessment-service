@@ -5,7 +5,7 @@ import {
   deleteAssessmentDb,
   listAssessmentsByCourse,
   insertQuestion, 
-  listQuestionsWithAlternatives, // Mudado para a versão com alternativas
+  listQuestionsWithAlternatives,
   NewAssessment, 
   NewQuestion, 
   UpdateAssessmentData 
@@ -34,7 +34,6 @@ export async function listAssessments(curso_id?: string) {
   if (curso_id) {
     return listAssessmentsByCourse(curso_id);
   }
-  // Se não especificar curso_id, retorna lista vazia por segurança
   return [];
 }
 
@@ -59,10 +58,7 @@ export async function addQuestion(d: NewQuestion) {
   return { id };
 }
 
-// Agora retorna questões com alternativas automaticamente
+// Retorna questões com alternativas automaticamente
 export async function getQuestions(assessmentCodigo: string) {
   return listQuestionsWithAlternatives(assessmentCodigo);
 }
-
-// REMOVIDO: addAlternative e getAlternatives
-// As alternativas agora são gerenciadas diretamente nas questões

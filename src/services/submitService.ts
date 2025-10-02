@@ -1,4 +1,4 @@
-import { findByCodigo, listQuestions } from '../repositories/assessmentRepository.js';
+import { findByCodigo, listQuestionsWithAlternatives } from '../repositories/assessmentRepository.js';
 import { publishEvent } from '../events/publisher.js';
 import { findAttemptById, finalizeAttempt } from '../repositories/attemptRepository.js';
 import { upsertAnswer } from '../repositories/answerRepository.js';
@@ -40,7 +40,7 @@ export async function gradeSubmission(input: GradeInput) {
   }
 
   // Calcula nota considerando TODAS as questões da avaliação
-  const questoes = await listQuestions(input.codigo);
+  const questoes = await listQuestionsWithAlternatives(input.codigo);
   const respostasMap = new Map(input.respostas.map(r => [r.questao_id, r.resposta]));
   let totalPesoGeral = 0, pontosObtidosObjetivas = 0, temDissertativa = false;
   

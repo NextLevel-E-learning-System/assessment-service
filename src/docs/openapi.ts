@@ -2,13 +2,20 @@ export const openapiSpec = {
   "openapi": "3.0.3",
   "info": { 
     "title": "Assessment Service API", 
-    "version": "1.7.0",
-    "description": `API simplificada para gerenciamento de avaliações. 
-MUDANÇAS v1.7.0:
-- Questões agora incluem alternativas automaticamente
-- Endpoints de alternativas removidos (consolidados em questões)
-- Endpoints redundantes de CRUD removidos
-- Foco em endpoints essenciais para frontend
+    "version": "1.8.0",
+    "description": `API consolidada para gerenciamento de avaliações com fluxos otimizados.
+
+NOVIDADES v1.8.0:
+- Endpoints consolidados que eliminam múltiplas chamadas HTTP
+- Fluxo completo de avaliação em 1-2 requests
+- Gestão automática de tentativas, respostas e correções
+- Performance otimizada para frontend
+
+PRINCIPAIS ENDPOINTS:
+- POST /{codigo}/start-complete: Inicia avaliação com todos os dados
+- POST /submit-complete: Submete avaliação completa
+- GET /attempts/{id}/review-complete: Revisão consolidada
+- POST /attempts/{id}/finalize-review: Finaliza correção
 `
   },
   "paths": {
@@ -259,6 +266,179 @@ MUDANÇAS v1.7.0:
           } 
         } 
       } 
+    },
+    "/assessments/v1/{codigo}/start-complete": {
+      "post": {
+        "summary": "Iniciar avaliação completa",
+        "description": "NOVO v1.8.0: Inicia avaliação retornando TODOS os dados necessários em uma única chamada",
+        "tags": ["consolidated-flows"],
+        "parameters": [{ "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "funcionario_id": { "type": "string", "format": "uuid", "description": "ID do funcionário (opcional se enviado via header)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Avaliação iniciada com dados completos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" },
+                    "data": { "$ref": "#/components/schemas/StartAssessmentResponse" }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito - já aprovado ou limite de tentativas",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/assessments/v1/submit-complete": {
+      "post": {
+        "summary": "Submeter avaliação completa",
+        "description": "NOVO v1.8.0: Processa todas as respostas, calcula nota e finaliza tentativa automaticamente",
+        "tags": ["consolidated-flows"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SubmitAssessmentRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Avaliação processada com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" },
+                    "data": { "$ref": "#/components/schemas/SubmitAssessmentResponse" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/assessments/v1/attempts/{id}/review-complete": {
+      "get": {
+        "summary": "Buscar tentativa para revisão completa",
+        "description": "NOVO v1.8.0: Retorna tentativa com todas as respostas para correção em uma única chamada",
+        "tags": ["consolidated-flows"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": {
+            "description": "Tentativa carregada para revisão",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" },
+                    "data": { "$ref": "#/components/schemas/AttemptReviewData" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/assessments/v1/attempts/{id}/finalize-review": {
+      "post": {
+        "summary": "Finalizar revisão e calcular nota final",
+        "description": "NOVO v1.8.0: Aplica todas as correções e recalcula nota final automaticamente",
+        "tags": ["consolidated-flows"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["correcoes"],
+                "properties": {
+                  "correcoes": {
+                    "type": "array",
+                    "items": { "$ref": "#/components/schemas/ReviewCorrection" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Revisão finalizada com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" },
+                    "data": { "$ref": "#/components/schemas/FinalizeReviewResponse" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/assessments/v1/users/{funcionario_id}/history": {
+      "get": {
+        "summary": "Histórico completo de tentativas",
+        "description": "NOVO v1.8.0: Retorna histórico consolidado de todas as tentativas do usuário",
+        "tags": ["consolidated-flows"],
+        "parameters": [
+          { "name": "funcionario_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "curso_id", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Filtrar por curso específico" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Histórico carregado com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" },
+                    "data": { "$ref": "#/components/schemas/UserHistoryResponse" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "/assessments/v1/{codigo}/attempts/start": { 
       "post": { 
@@ -1015,6 +1195,156 @@ MUDANÇAS v1.7.0:
           "feedback": { "type": "string", "nullable": true },
           "pontuacao": { "type": "number" },
           "criado_em": { "type": "string", "format": "date-time" }
+        }
+      },
+      "StartAssessmentResponse": {
+        "type": "object",
+        "required": ["tentativa", "avaliacao", "questoes", "tentativas_anteriores"],
+        "description": "NOVO v1.8.0: Resposta consolidada para início de avaliação",
+        "properties": {
+          "tentativa": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "format": "uuid" },
+              "avaliacao_id": { "type": "string" },
+              "funcionario_id": { "type": "string", "format": "uuid" },
+              "data_inicio": { "type": "string", "format": "date-time" },
+              "status": { "type": "string" },
+              "tempo_limite": { "type": "integer", "nullable": true },
+              "tentativas_permitidas": { "type": "integer", "nullable": true }
+            }
+          },
+          "avaliacao": {
+            "type": "object",
+            "properties": {
+              "codigo": { "type": "string" },
+              "titulo": { "type": "string" },
+              "tempo_limite": { "type": "integer", "nullable": true },
+              "tentativas_permitidas": { "type": "integer", "nullable": true },
+              "nota_minima": { "type": "number", "nullable": true }
+            }
+          },
+          "questoes": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/QuestionWithAlternatives" }
+          },
+          "tentativas_anteriores": { "type": "integer" },
+          "pode_recuperacao": { "type": "boolean" }
+        }
+      },
+      "SubmitAssessmentRequest": {
+        "type": "object",
+        "required": ["tentativa_id", "respostas"],
+        "description": "NOVO v1.8.0: Payload para submissão completa",
+        "properties": {
+          "tentativa_id": { "type": "string", "format": "uuid" },
+          "respostas": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["questao_id", "resposta_funcionario"],
+              "properties": {
+                "questao_id": { "type": "string", "format": "uuid" },
+                "resposta_funcionario": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "SubmitAssessmentResponse": {
+        "type": "object",
+        "required": ["tentativa_id", "status", "tem_dissertativas", "respostas_salvas", "mensagem"],
+        "description": "NOVO v1.8.0: Resultado da submissão consolidada",
+        "properties": {
+          "tentativa_id": { "type": "string", "format": "uuid" },
+          "status": { "type": "string", "enum": ["FINALIZADA", "PENDENTE_REVISAO", "APROVADO", "REPROVADO"] },
+          "nota_obtida": { "type": "number", "nullable": true },
+          "nota_minima": { "type": "number", "nullable": true },
+          "tem_dissertativas": { "type": "boolean" },
+          "questoes_dissertativas_pendentes": { "type": "integer" },
+          "respostas_salvas": { "type": "integer" },
+          "mensagem": { "type": "string" }
+        }
+      },
+      "AttemptReviewData": {
+        "type": "object",
+        "required": ["tentativa", "respostas"],
+        "description": "NOVO v1.8.0: Dados consolidados para revisão",
+        "properties": {
+          "tentativa": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "format": "uuid" },
+              "funcionario_nome": { "type": "string" },
+              "funcionario_email": { "type": "string" },
+              "avaliacao_titulo": { "type": "string" },
+              "data_inicio": { "type": "string", "format": "date-time" },
+              "status": { "type": "string" },
+              "nota_obtida": { "type": "number", "nullable": true }
+            }
+          },
+          "respostas": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "resposta_id": { "type": "string", "format": "uuid" },
+                "questao_id": { "type": "string", "format": "uuid" },
+                "enunciado": { "type": "string" },
+                "tipo_questao": { "type": "string" },
+                "peso": { "type": "number" },
+                "resposta_funcionario": { "type": "string", "nullable": true },
+                "pontuacao": { "type": "number", "nullable": true },
+                "feedback": { "type": "string", "nullable": true }
+              }
+            }
+          }
+        }
+      },
+      "ReviewCorrection": {
+        "type": "object",
+        "required": ["resposta_id", "pontuacao"],
+        "description": "NOVO v1.8.0: Correção individual",
+        "properties": {
+          "resposta_id": { "type": "string", "format": "uuid" },
+          "pontuacao": { "type": "number", "minimum": 0 },
+          "feedback": { "type": "string", "nullable": true }
+        }
+      },
+      "FinalizeReviewResponse": {
+        "type": "object",
+        "required": ["tentativa_id", "nota_final", "status", "correcoes_aplicadas", "mensagem"],
+        "description": "NOVO v1.8.0: Resultado da finalização de revisão",
+        "properties": {
+          "tentativa_id": { "type": "string", "format": "uuid" },
+          "nota_final": { "type": "number" },
+          "status": { "type": "string", "enum": ["APROVADO", "REPROVADO"] },
+          "correcoes_aplicadas": { "type": "integer" },
+          "mensagem": { "type": "string" }
+        }
+      },
+      "UserHistoryResponse": {
+        "type": "object",
+        "required": ["funcionario_id", "total_tentativas", "tentativas"],
+        "description": "NOVO v1.8.0: Histórico consolidado do usuário",
+        "properties": {
+          "funcionario_id": { "type": "string", "format": "uuid" },
+          "total_tentativas": { "type": "integer" },
+          "tentativas": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                { "$ref": "#/components/schemas/Attempt" },
+                {
+                  "type": "object",
+                  "properties": {
+                    "avaliacao_titulo": { "type": "string" },
+                    "curso_id": { "type": "string" }
+                  }
+                }
+              ]
+            }
+          }
         }
       }
     }

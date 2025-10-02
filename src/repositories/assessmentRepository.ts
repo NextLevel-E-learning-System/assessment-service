@@ -132,25 +132,6 @@ export interface QuestionWithAlternatives extends Question {
   alternatives: Alternative[];
 }
 
-export async function listQuestions(assessmentCodigo:string): Promise<Question[]>{
-	return withClient(async c=>{
-		const r = await c.query(
-			`select id, avaliacao_id as assessment_codigo, enunciado, tipo_questao as tipo, opcoes_resposta, resposta_correta, peso
-			 from ${TABLE_QUESTOES} where avaliacao_id=$1 order by id`,
-			[assessmentCodigo]
-		);
-		return r.rows.map(row=>({
-			id: row.id,
-			assessment_codigo: row.assessment_codigo,
-			enunciado: row.enunciado,
-			tipo: row.tipo,
-			opcoes_resposta: row.opcoes_resposta || [],
-			resposta_correta: row.resposta_correta,
-			peso: Number(row.peso) || 1
-		}));
-	});
-}
-
 export async function listQuestionsWithAlternatives(assessmentCodigo:string): Promise<QuestionWithAlternatives[]>{
 	return withClient(async c=>{
 		const r = await c.query(
@@ -182,25 +163,5 @@ export async function listQuestionsWithAlternatives(assessmentCodigo:string): Pr
 	});
 }
 
-// Inserção de "alternative" = atualizar array opcoes_resposta e (opcionalmente) resposta_correta
-export async function insertAlternative(a:NewAlternative): Promise<string>{
-	return withClient(async c=>{
-		const q = await c.query(`select opcoes_resposta, resposta_correta from ${TABLE_QUESTOES} where id=$1`,[a.questao_id]);
-		if(q.rowCount===0) throw new Error('question_not_found');
-		const current:string[] = q.rows[0].opcoes_resposta || [];
-		if(!current.includes(a.texto)) current.push(a.texto);
-		const resposta_correta = a.correta ? a.texto : q.rows[0].resposta_correta;
-		await c.query(`update ${TABLE_QUESTOES} set opcoes_resposta=$2, resposta_correta=$3 where id=$1`,[a.questao_id,current,resposta_correta]);
-		// Usamos o próprio texto como id lógico (mantendo compatibilidade onde alternativa_id era usado)
-		return a.texto;
-	});
-}
-export async function listAlternatives(questaoId:string): Promise<Alternative[]>{
-	return withClient(async c=>{
-		const q = await c.query(`select opcoes_resposta, resposta_correta from ${TABLE_QUESTOES} where id=$1`,[questaoId]);
-		if(q.rowCount===0) return [];
-		const opts:string[] = q.rows[0].opcoes_resposta || [];
-		const correta = q.rows[0].resposta_correta;
-		return opts.map(txt=>({ id: txt, questao_id: questaoId, texto: txt, correta: txt===correta }));
-	});
-}
+// REMOVIDO: insertAlternative, listAlternatives - não são mais necessários
+// As alternativas são gerenciadas diretamente nas questões via opcoes_resposta[]

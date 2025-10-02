@@ -7,55 +7,46 @@ import {
   deleteAssessmentHandler,
   addQuestionHandler, 
   listQuestionsHandler
-  // REMOVIDO: addAlternativeHandler, listAlternativesHandler
 } from '../controllers/assessmentController.js';
-import { submitAssessmentHandler } from '../controllers/submitController.js';
-import { 
-  startAttemptHandler, 
-  getAttemptHandler, 
-  listAttemptsByUserHandler
-  // REMOVIDO: createAttemptHandler, listAttemptsByAssessmentHandler (redundantes)
-} from '../controllers/attemptController.js';
-import { 
-  upsertAnswerHandler, 
-  listAnswersByAttemptHandler
-  // REMOVIDO: createAnswerHandler (redundante com upsert), getAnswerHandler, listAnswersByQuestionHandler, getAttemptStatisticsHandler, calculateAttemptScoreHandler (desnecessários para frontend)
-} from '../controllers/answerController.js';
-import { 
-  listDissertativeHandler, 
-  reviewAttemptHandler,
-  getAnswerFeedbackHandler,
+import {
+  startCompleteAssessmentHandler,
+  submitCompleteAssessmentHandler,
+  getAttemptForReviewHandler,
+  finalizeReviewHandler,
+  getUserAssessmentHistoryHandler
+} from '../controllers/assessmentFlowController.js';
+import {
   listPendingReviewsHandler
 } from '../controllers/reviewController.js';
 
 export const assessmentRouter = Router();
 
-// ===== ROTAS PRINCIPAIS DE AVALIAÇÕES =====
+// ===== GESTÃO DE AVALIAÇÕES =====
 assessmentRouter.post('/', createAssessmentHandler);
-assessmentRouter.get('/', listAssessmentsHandler); // Lista com filtro por curso_id
+assessmentRouter.get('/', listAssessmentsHandler);
 assessmentRouter.get('/:codigo', getAssessmentHandler);
 assessmentRouter.put('/:codigo', updateAssessmentHandler); 
 assessmentRouter.delete('/:codigo', deleteAssessmentHandler); 
 
-// ===== ROTAS DE QUESTÕES (COM ALTERNATIVAS INCLUÍDAS) =====
+// ===== GESTÃO DE QUESTÕES =====
 assessmentRouter.post('/:codigo/questions', addQuestionHandler); 
-assessmentRouter.get('/:codigo/questions', listQuestionsHandler); // Agora inclui alternativas automaticamente
+assessmentRouter.get('/:codigo/questions', listQuestionsHandler);
 
-// ===== ROTAS DE TENTATIVAS SIMPLIFICADAS =====
-// Início de tentativa controlado (com regras de negócio)
-assessmentRouter.post('/:codigo/attempts/start', startAttemptHandler);
-assessmentRouter.get('/attempts/:id', getAttemptHandler);
-assessmentRouter.get('/users/:funcionario_id/attempts', listAttemptsByUserHandler);
+// ===== FLUXOS CONSOLIDADOS v1.8.0 ⭐ =====
+// Inicia avaliação com TODOS os dados necessários
+assessmentRouter.post('/:codigo/start-complete', startCompleteAssessmentHandler);
 
-// ===== ROTAS DE RESPOSTAS SIMPLIFICADAS =====
-assessmentRouter.post('/answers/upsert', upsertAnswerHandler); // Único endpoint necessário para salvar respostas
-assessmentRouter.get('/attempts/:tentativa_id/answers', listAnswersByAttemptHandler);
+// Submete avaliação completa processando todas as respostas
+assessmentRouter.post('/submit-complete', submitCompleteAssessmentHandler);
 
-// ===== SUBMISSÃO E CORREÇÃO =====
-assessmentRouter.post('/:codigo/submit', submitAssessmentHandler);
+// Busca tentativa completa para revisão
+assessmentRouter.get('/attempts/:id/review-complete', getAttemptForReviewHandler);
 
-// ===== CORREÇÃO DISSERTATIVA (R16) =====
-assessmentRouter.get('/attempts/:attemptId/dissertative', listDissertativeHandler);
-assessmentRouter.patch('/attempts/:attemptId/review', reviewAttemptHandler);
-assessmentRouter.get('/answers/:respostaId/feedback', getAnswerFeedbackHandler);
+// Finaliza revisão aplicando todas as correções
+assessmentRouter.post('/attempts/:id/finalize-review', finalizeReviewHandler);
+
+// Histórico completo de tentativas
+assessmentRouter.get('/users/:funcionario_id/history', getUserAssessmentHistoryHandler);
+
+// Fila de correções pendentes
 assessmentRouter.get('/reviews/pending', listPendingReviewsHandler);
