@@ -2,8 +2,8 @@ export const openapiSpec = {
   "openapi": "3.0.3",
   "info": { 
     "title": "Assessment Service API", 
-  "version": "1.9.0",
-  "description": `API consolidada para gerenciamento de avaliações com fluxos otimizados.
+    "version": "1.9.0",
+    "description": `API consolidada para gerenciamento de avaliações com fluxos otimizados.
 
 NOVIDADES v1.9.0:
 - Removida lógica de 'recuperação' (não existe no domínio)
@@ -18,11 +18,41 @@ PRINCIPAIS ENDPOINTS:
 - POST /attempts/{id}/finalize-review
 `
   },
+  "tags": [
+    {
+      "name": "Assessment - Avaliações",
+      "description": "Gestão de Avaliações - CRUD completo de avaliações"
+    },
+    {
+      "name": "Assessment - Questões",
+      "description": "Gestão de Questões - CRUD de questões das avaliações"
+    },
+    {
+      "name": "Assessment - Fluxos Consolidados",
+      "description": "Fluxos Consolidados - Endpoints otimizados para frontend (v1.8.0+)"
+    },
+    {
+      "name": "Assessment - Tentativas",
+      "description": "Gestão de Tentativas - Histórico e controle de tentativas"
+    },
+    {
+      "name": "Assessment - Respostas",
+      "description": "Gestão de Respostas - Respostas dos alunos"
+    },
+    {
+      "name": "Assessment - Revisão",
+      "description": "Revisão e Correção - Correção manual de questões dissertativas"
+    },
+    {
+      "name": "Assessment - Estatísticas",
+      "description": "Estatísticas e Relatórios - Análise de desempenho"
+    }
+  ],
   "paths": {
     "/assessments/v1": { 
       "post": { 
         "summary": "Criar avaliação", 
-        "tags": ["assessments"], 
+        "tags": ["Assessment - Avaliações"], 
         "requestBody": { 
           "required": true, 
           "content": { 
@@ -70,7 +100,7 @@ PRINCIPAIS ENDPOINTS:
       },
       "get": {
         "summary": "Listar avaliações",
-        "tags": ["assessments"],
+        "tags": ["Assessment - Avaliações"],
         "parameters": [
           { "name": "curso_id", "in": "query", "schema": { "type": "string" } },
           { "name": "ativo", "in": "query", "schema": { "type": "boolean" } }
@@ -97,7 +127,7 @@ PRINCIPAIS ENDPOINTS:
     "/assessments/v1/{codigo}": { 
       "get": { 
         "summary": "Obter avaliação", 
-        "tags": ["assessments"], 
+        "tags": ["Assessment - Avaliações"], 
         "parameters": [{ "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } }], 
         "responses": { 
           "200": { 
@@ -126,7 +156,7 @@ PRINCIPAIS ENDPOINTS:
       },
       "put": {
         "summary": "Atualizar avaliação",
-        "tags": ["assessments"],
+        "tags": ["Assessment - Avaliações"],
         "parameters": [{ "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
           "required": true,
@@ -172,7 +202,7 @@ PRINCIPAIS ENDPOINTS:
       },
       "delete": {
         "summary": "Inativar avaliação (soft delete)",
-        "tags": ["assessments"],
+        "tags": ["Assessment - Avaliações"],
         "parameters": [{ "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
           "200": {
@@ -204,7 +234,7 @@ PRINCIPAIS ENDPOINTS:
       "get": {
         "summary": "Obter avaliação completa com questões",
         "description": "NOVO v1.9.0: Retorna avaliação e todas as suas questões em uma única chamada",
-        "tags": ["assessments"],
+        "tags": ["Assessment - Avaliações"],
         "parameters": [{ "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
           "200": {
@@ -229,7 +259,7 @@ PRINCIPAIS ENDPOINTS:
     "/assessments/v1/{codigo}/questions": { 
       "post": { 
         "summary": "Adicionar questão", 
-        "tags": ["questions"], 
+        "tags": ["Assessment - Questões"], 
         "parameters": [{ "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } }], 
         "requestBody": { 
           "required": true, 
@@ -277,7 +307,7 @@ PRINCIPAIS ENDPOINTS:
       "get": { 
         "summary": "Listar questões da avaliação", 
         "description": "ATUALIZADO v1.9.0: Retorna questões diretas, sem alternatives artificiais",
-        "tags": ["questions"], 
+        "tags": ["Assessment - Questões"], 
         "parameters": [{ "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } }], 
         "responses": { 
           "200": { 
@@ -297,7 +327,7 @@ PRINCIPAIS ENDPOINTS:
     "/assessments/v1/{codigo}/questions/{id}": {
       "put": {
         "summary": "Atualizar questão",
-        "tags": ["questions"],
+        "tags": ["Assessment - Questões"],
         "parameters": [
           { "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } },
           { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
@@ -307,7 +337,7 @@ PRINCIPAIS ENDPOINTS:
       },
       "delete": {
         "summary": "Remover questão",
-        "tags": ["questions"],
+        "tags": ["Assessment - Questões"],
         "parameters": [
           { "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } },
           { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
@@ -319,7 +349,7 @@ PRINCIPAIS ENDPOINTS:
       "post": {
         "summary": "Iniciar avaliação completa",
         "description": "NOVO v1.8.0: Inicia avaliação retornando TODOS os dados necessários em uma única chamada",
-        "tags": ["consolidated-flows"],
+        "tags": ["Assessment - Fluxos Consolidados"],
         "parameters": [{ "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
           "required": false,
@@ -365,7 +395,7 @@ PRINCIPAIS ENDPOINTS:
       "post": {
         "summary": "Submeter avaliação completa",
         "description": "NOVO v1.8.0: Processa todas as respostas, calcula nota e finaliza tentativa automaticamente",
-        "tags": ["consolidated-flows"],
+        "tags": ["Assessment - Fluxos Consolidados"],
         "requestBody": {
           "required": true,
           "content": {
@@ -397,7 +427,7 @@ PRINCIPAIS ENDPOINTS:
       "get": {
         "summary": "Buscar tentativa para revisão completa",
         "description": "NOVO v1.8.0: Retorna tentativa com todas as respostas para correção em uma única chamada",
-        "tags": ["consolidated-flows"],
+        "tags": ["Assessment - Fluxos Consolidados"],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
         "responses": {
           "200": {
@@ -422,7 +452,7 @@ PRINCIPAIS ENDPOINTS:
       "post": {
         "summary": "Finalizar revisão e calcular nota final",
         "description": "NOVO v1.8.0: Aplica todas as correções e recalcula nota final automaticamente",
-        "tags": ["consolidated-flows"],
+        "tags": ["Assessment - Fluxos Consolidados"],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
         "requestBody": {
           "required": true,
@@ -464,7 +494,7 @@ PRINCIPAIS ENDPOINTS:
       "get": {
         "summary": "Histórico completo de tentativas",
         "description": "NOVO v1.8.0: Retorna histórico consolidado de todas as tentativas do usuário",
-        "tags": ["consolidated-flows"],
+        "tags": ["Assessment - Fluxos Consolidados"],
         "parameters": [
           { "name": "funcionario_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
           { "name": "curso_id", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Filtrar por curso específico" }
@@ -491,7 +521,7 @@ PRINCIPAIS ENDPOINTS:
     "/assessments/v1/{codigo}/attempts/start": { 
       "post": { 
         "summary": "Iniciar tentativa", 
-        "tags": ["attempts"], 
+        "tags": ["Assessment - Tentativas"], 
         "parameters": [{ "name": "codigo", "in": "path", "required": true, "schema": { "type": "string" } }], 
         "requestBody": { 
           "required": false, 
@@ -545,7 +575,7 @@ PRINCIPAIS ENDPOINTS:
     "/assessments/v1/attempts": {
       "post": {
         "summary": "Criar tentativa diretamente",
-        "tags": ["attempts"],
+        "tags": ["Assessment - Tentativas"],
         "requestBody": {
           "required": true,
           "content": {
@@ -583,7 +613,7 @@ PRINCIPAIS ENDPOINTS:
     "/assessments/v1/attempts/{id}": {
       "get": {
         "summary": "Obter tentativa por ID",
-        "tags": ["attempts"],
+        "tags": ["Assessment - Tentativas"],
         "description": "⚠️ SOMENTE LEITURA: Tentativas são dados históricos e não podem ser editadas",
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
         "responses": {
@@ -615,7 +645,7 @@ PRINCIPAIS ENDPOINTS:
     "/assessments/v1/users/{funcionario_id}/attempts": {
       "get": {
         "summary": "Listar tentativas do usuário",
-        "tags": ["attempts"],
+        "tags": ["Assessment - Tentativas"],
         "parameters": [
           { "name": "funcionario_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
           { "name": "avaliacao_id", "in": "query", "schema": { "type": "string" } }
@@ -642,7 +672,7 @@ PRINCIPAIS ENDPOINTS:
     "/assessments/v1/avaliacoes/{avaliacao_id}/attempts": {
       "get": {
         "summary": "Listar tentativas da avaliação",
-        "tags": ["attempts"],
+        "tags": ["Assessment - Tentativas"],
         "parameters": [
           { "name": "avaliacao_id", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
@@ -830,7 +860,7 @@ PRINCIPAIS ENDPOINTS:
     "/assessments/v1/attempts/{tentativa_id}/statistics": {
       "get": {
         "summary": "Obter estatísticas da tentativa",
-        "tags": ["statistics"],
+        "tags": ["Assessment - Estat�sticas"],
         "parameters": [{ "name": "tentativa_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
         "responses": {
           "200": {
@@ -853,7 +883,7 @@ PRINCIPAIS ENDPOINTS:
     "/assessments/v1/attempts/{tentativa_id}/score": {
       "get": {
         "summary": "Calcular nota da tentativa",
-        "tags": ["statistics"],
+        "tags": ["Assessment - Estat�sticas"],
         "description": "Calcula a nota final da tentativa respeitando pesos das questões. Se há questões dissertativas sem nota, retorna nota proporcional apenas das objetivas até a correção manual.",
         "parameters": [{ "name": "tentativa_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
         "responses": {
@@ -880,7 +910,7 @@ PRINCIPAIS ENDPOINTS:
     "/assessments/v1/attempts/{attemptId}/dissertative": { 
       "get": { 
         "summary": "Listar respostas dissertativas para revisão", 
-        "tags": ["review"], 
+        "tags": ["Assessment - Revis�o"], 
         "parameters": [{ "name": "attemptId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }], 
         "responses": { 
           "200": { 
@@ -920,7 +950,7 @@ PRINCIPAIS ENDPOINTS:
     "/assessments/v1/attempts/{attemptId}/review": { 
       "patch": { 
         "summary": "Aplicar revisão manual em questões dissertativas", 
-        "tags": ["review"], 
+        "tags": ["Assessment - Revis�o"], 
         "description": "Aplica pontuação e feedback nas questões dissertativas. Recalcula automaticamente a nota final considerando peso de todas as questões e finaliza a tentativa com status APROVADO/REPROVADO. Publica eventos após finalização.",
         "parameters": [{ "name": "attemptId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }], 
         "requestBody": { 
@@ -990,7 +1020,7 @@ PRINCIPAIS ENDPOINTS:
     "/assessments/v1/answers/{respostaId}/feedback": {
       "get": {
         "summary": "Obter feedback de uma resposta",
-        "tags": ["review"],
+        "tags": ["Assessment - Revis�o"],
         "description": "Retorna o feedback mais recente dado a uma resposta específica (agora direto da tabela respostas)",
         "parameters": [{ 
           "name": "respostaId", 
@@ -1029,7 +1059,7 @@ PRINCIPAIS ENDPOINTS:
     "/assessments/v1/reviews/pending": {
       "get": {
         "summary": "Listar fila de correções pendentes",
-        "tags": ["review"],
+        "tags": ["Assessment - Revis�o"],
         "description": "Retorna lista de tentativas pendentes de correção dissertativa (R16: Fila de correções pendentes)",
         "parameters": [
           {
