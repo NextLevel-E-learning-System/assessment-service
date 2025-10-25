@@ -46,6 +46,26 @@ export async function getAssessmentWithQuestionsHandler(req: Request, res: Respo
   }
 }
 
+export async function getModuleAssessmentHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { modulo_id } = req.params;
+    const { findActiveByModulo } = await import('../repositories/assessmentRepository.js');
+    
+    const avaliacao = await findActiveByModulo(modulo_id);
+    
+    if (!avaliacao) {
+      return next(new HttpError(404, 'Nenhuma avaliação ativa encontrada para este módulo'));
+    }
+    
+    res.json({
+      success: true,
+      data: avaliacao
+    });
+  } catch (e) {
+    next(e);
+  }
+}
+
 export async function listAssessmentsHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const curso_id = req.query.curso_id as string;

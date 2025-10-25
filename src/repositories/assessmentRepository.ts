@@ -50,6 +50,20 @@ export async function findByCodigo(codigo: string): Promise<Assessment | null> {
   });
 }
 
+// Buscar avaliação ativa por módulo
+export async function findActiveByModulo(moduloId: string): Promise<Assessment | null> {
+  return withClient(async c => {
+    const r = await c.query(
+      `SELECT codigo, curso_id, titulo, tempo_limite, tentativas_permitidas, nota_minima, modulo_id, ativo, criado_em, atualizado_em
+       FROM ${TABLE_AVALIACOES} 
+       WHERE modulo_id = $1 AND ativo = true 
+       LIMIT 1`, 
+      [moduloId]
+    );
+    return r.rows[0] || null;
+  });
+}
+
 export async function listAssessmentsByCourse(curso_id: string): Promise<Assessment[]> {
   return withClient(async c => {
     const r = await c.query(
