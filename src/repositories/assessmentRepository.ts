@@ -180,6 +180,31 @@ export async function listQuestionsSimple(assessmentCodigo: string): Promise<Que
   });
 }
 
+export interface QuestionForStudent {
+  id: string;
+  enunciado: string;
+  tipo: 'MULTIPLA_ESCOLHA' | 'VERDADEIRO_FALSO' | 'DISSERTATIVA';
+  opcoes_resposta: string[];
+  peso: number;
+}
+
+export async function listQuestionsForStudent(assessmentCodigo: string): Promise<QuestionForStudent[]> {
+  return withClient(async c => {
+    const r = await c.query(
+      `SELECT id, enunciado, tipo_questao as tipo, opcoes_resposta, peso
+       FROM ${TABLE_QUESTOES} WHERE avaliacao_id = $1 ORDER BY criado_em`,
+      [assessmentCodigo]
+    );
+    return r.rows.map(row => ({
+      id: row.id,
+      enunciado: row.enunciado,
+      tipo: row.tipo,
+      opcoes_resposta: row.opcoes_resposta || [],
+      peso: Number(row.peso) || 1
+    }));
+  });
+}
+
 // ==== NOVOS MÉTODOS PARA EDIÇÃO/REMOÇÃO DE QUESTÕES ====
 export interface UpdateQuestionData { enunciado?:string; opcoes_resposta?:string[]; resposta_correta?:string|null; peso?:number; tipo?: 'MULTIPLA_ESCOLHA'|'VERDADEIRO_FALSO'|'DISSERTATIVA' }
 

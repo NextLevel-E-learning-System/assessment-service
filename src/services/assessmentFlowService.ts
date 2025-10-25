@@ -1,6 +1,6 @@
 // Novo serviço para fluxos consolidados de avaliação
 import { withClient } from '../db.js';
-import { findByCodigo, listQuestionsSimple } from '../repositories/assessmentRepository.js';
+import { findByCodigo, listQuestionsForStudent } from '../repositories/assessmentRepository.js';
 import * as attemptRepository from '../repositories/attemptRepository.js';
 import * as answerRepository from '../repositories/answerRepository.js';
 import { HttpError } from '../utils/httpError.js';
@@ -125,8 +125,8 @@ export async function startCompleteAssessment(
     throw new HttpError(500, 'failed_to_create_attempt');
   }
 
-  // 6. Buscar questões (simplificadas, sem alternatives artificiais)
-  const questoes = await listQuestionsSimple(avaliacao_codigo);
+  // 6. Buscar questões SEM resposta correta (para o aluno)
+  const questoes = await listQuestionsForStudent(avaliacao_codigo);
 
   return {
     tentativa: {
