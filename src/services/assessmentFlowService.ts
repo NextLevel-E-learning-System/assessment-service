@@ -138,28 +138,69 @@ export async function startCompleteAssessment(
     throw new HttpError(404, 'assessment_not_found');
   }
 
-  // 2. Validar pré-requisitos (curso concluído) - mesmo código anterior
+  // 2. Validar pré-requisitos: TODOS os módulos obrigatórios do curso devem estar concluídos
   const progressBase = process.env.PROGRESS_SERVICE_URL;
-  if (progressBase) {
+  if (progressBase && avaliacao.curso_id) {
     try {
-      const url = `${progressBase}/progress/v1/inscricoes/usuario/${encodeURIComponent(funcionario_id)}`;
-      const resp = await fetch(url);
-      if (resp.ok) {
-        const inscricoes = await resp.json();
-        type Inscricao = { id: string; curso_id: string; status: string };
-        const arr: Inscricao[] = Array.isArray(inscricoes) ? inscricoes : [];
-        const match = arr.find(i => i.curso_id === avaliacao.curso_id);
-        if (!match || match.status !== 'CONCLUIDO') {
-          throw new HttpError(409, 'course_not_completed');
+      // Buscar progresso dos módulos do aluno neste curso
+      const progressUrl = `${progressBase}/progress/v1/modulos/progresso?inscricao_id=&funcionario_id=${encodeURIComponent(funcionario_id)}`;
+      const progressResp = await fetch(progressUrl);
+      
+      if (progressResp.ok) {
+        const progressData = await progressResp.json();
+        
+        // Buscar módulos do curso para verificar quais são obrigatórios
+        const courseServiceBase = process.env.COURSE_SERVICE_URL;
+        if (courseServiceBase) {
+          const modulesUrl = `${courseServiceBase}/courses/v1/${avaliacao.curso_id}/modules`;
+          const modulesResp = await fetch(modulesUrl);
+          
+          if (modulesResp.ok) {
+            const modulesData = await modulesResp.json();
+            const modules = Array.isArray(modulesData) ? modulesData : modulesData.modulos || [];
+            
+            // Tipos para módulos e progresso
+            type ModuleType = { id: string; titulo: string; obrigatorio: boolean };
+            type ProgressType = { modulo_id: string; data_conclusao: string | null };
+            
+            // Filtrar módulos obrigatórios (excluindo o módulo da própria avaliação)
+            const requiredModules = (modules as ModuleType[]).filter((m) => 
+              m.obrigatorio && m.id !== avaliacao.modulo_id
+            );
+            
+            if (requiredModules.length > 0) {
+              // Verificar se todos os módulos obrigatórios estão concluídos
+              const completedModuleIds = new Set(
+                (Array.isArray(progressData) ? progressData : [] as ProgressType[])
+                  .filter((p: ProgressType) => p.data_conclusao !== null)
+                  .map((p: ProgressType) => p.modulo_id)
+              );
+              
+              const incompletedRequired = requiredModules.filter(
+                (m: ModuleType) => !completedModuleIds.has(m.id)
+              );
+              
+              if (incompletedRequired.length > 0) {
+                throw new HttpError(
+                  403, 
+                  'required_modules_not_completed',
+                  { 
+                    message: 'Você precisa concluir todos os módulos obrigatórios antes de fazer a avaliação',
+                    incomplete_modules: incompletedRequired.map((m: ModuleType) => m.titulo)
+                  }
+                );
+              }
+            }
+          }
         }
       }
     } catch (err) {
       if (err instanceof HttpError) throw err;
-      console.warn('Falha ao validar progresso do curso:', err);
+      console.warn('Falha ao validar módulos obrigatórios:', err);
     }
   }
 
-  // 3. Verificar tentativas anteriores
+  // 3. Verificar tentativas anteriores e aplicar regra de recuperação
   const tentativasAnteriores = await withClient(async c => {
     const result = await c.query(
       `SELECT id, status, nota_obtida FROM assessment_service.tentativas 
@@ -174,14 +215,39 @@ export async function startCompleteAssessment(
     ['APROVADO', 'REPROVADO', 'PENDENTE_REVISAO', 'FINALIZADA'].includes(t.status)
   );
   
-  const aprovadas = finalizadas.filter(t => t.status === 'APROVADO');
+  // Verificar se já foi aprovado (nota >= 7.0)
+  const aprovadas = finalizadas.filter(t => 
+    t.status === 'APROVADO' || (t.nota_obtida !== null && Number(t.nota_obtida) >= 7.0)
+  );
+  
   if (aprovadas.length > 0) {
-    throw new HttpError(409, 'already_passed');
+    throw new HttpError(409, 'already_passed', {
+      message: 'Você já foi aprovado nesta avaliação'
+    });
   }
 
-  const tentativasPermitidas = avaliacao.tentativas_permitidas || 1;
-  if (finalizadas.length >= tentativasPermitidas) {
-    throw new HttpError(409, 'attempt_limit_reached');
+  // Regra: Permite 2 tentativas (inicial + 1 recuperação se nota < 7.0)
+  // Se já tem 2 tentativas finalizadas e nenhuma aprovada, bloquear
+  if (finalizadas.length >= 2) {
+    throw new HttpError(409, 'attempt_limit_reached', {
+      message: 'Você atingiu o limite de tentativas para esta avaliação (2 tentativas)',
+      attempts_used: finalizadas.length
+    });
+  }
+
+  // Se tem 1 tentativa e foi >= 7.0, não permite nova tentativa
+  if (finalizadas.length === 1) {
+    const primeiraNotaString = finalizadas[0].nota_obtida;
+    if (primeiraNotaString !== null) {
+      const primeiraNota = Number(primeiraNotaString);
+      if (primeiraNota >= 7.0) {
+        throw new HttpError(409, 'already_passed', {
+          message: 'Você já foi aprovado com nota >= 7.0',
+          nota: primeiraNota
+        });
+      }
+      // Se nota < 7.0, permite tentativa de recuperação (será a 2ª tentativa)
+    }
   }
 
   // 4. Criar nova tentativa
@@ -275,7 +341,7 @@ export async function submitCompleteAssessment(
       // Calcular pontuação automática para questões objetivas
       if (questao.tipo_questao === 'DISSERTATIVA') {
         temDissertativas = true;
-        pontuacao = null; // Será preenchida pelo instrutor
+        pontuacao = null; // Será preenchida pelo instrutor (mantém null para sinalizar pendência)
       } else {
         // Resposta vazia = 0 pontos
         if (!resposta.resposta_funcionario?.trim()) {
@@ -285,13 +351,13 @@ export async function submitCompleteAssessment(
           const respostaClean = resposta.resposta_funcionario.trim();
           const respostaCorretaClean = questao.resposta_correta?.trim() || '';
           
-          // Comparação case-insensitive
+          // Comparação case-insensitive - SEMPRE salva número (peso ou 0)
           const match = respostaClean.toLowerCase() === respostaCorretaClean.toLowerCase();
-          pontuacao = match ? questao.peso : 0;
+          pontuacao = match ? Number(questao.peso) : 0; // SEMPRE 0 se errado, nunca null
           
           console.log(`Questão ${questao.id} (${questao.tipo_questao}): resposta="${respostaClean}", correta="${respostaCorretaClean}", match=${match}, pontuacao=${pontuacao}`);
         } else {
-          pontuacao = 0; // Tipo não reconhecido
+          pontuacao = 0; // Tipo não reconhecido = 0 pontos
         }
       }
 

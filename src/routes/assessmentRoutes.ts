@@ -58,6 +58,35 @@ assessmentRouter.get('/:codigo/questions/for-student', async (req, res, next) =>
 // Buscar tentativa ativa (em andamento)
 assessmentRouter.get('/:codigo/active-attempt', getActiveAttemptHandler);
 
+// Buscar histórico de tentativas do usuário para uma avaliação específica
+assessmentRouter.get('/:codigo/my-attempts', async (req, res, next) => {
+  try {
+    const { codigo } = req.params;
+    const funcionario_id = req.headers['x-user-id'] as string;
+    
+    if (!funcionario_id) {
+      return res.status(400).json({ success: false, error: 'missing_user_id' });
+    }
+
+    const { withClient } = await import('../db.js');
+    const tentativas = await withClient(async c => {
+      const result = await c.query(
+        `SELECT id, avaliacao_id, funcionario_id, data_inicio, data_fim, 
+                nota_obtida, status, criado_em
+         FROM assessment_service.tentativas
+         WHERE avaliacao_id = $1 AND funcionario_id = $2
+         ORDER BY criado_em DESC`,
+        [codigo, funcionario_id]
+      );
+      return result.rows;
+    });
+
+    res.json({ success: true, data: tentativas });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // Inicia avaliação com TODOS os dados necessários
 assessmentRouter.post('/:codigo/start-complete', startCompleteAssessmentHandler);
 
