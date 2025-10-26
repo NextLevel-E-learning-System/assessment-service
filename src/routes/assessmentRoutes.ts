@@ -43,6 +43,17 @@ assessmentRouter.delete('/:codigo/questions/:id', deleteQuestionHandler);
 // Buscar avaliação de um módulo (sem resposta correta nas questões)
 assessmentRouter.get('/module/:modulo_id/for-student', getModuleAssessmentHandler);
 
+// Buscar questões para preview (sem resposta correta) - NOVO
+assessmentRouter.get('/:codigo/questions/for-student', async (req, res, next) => {
+  try {
+    const { listQuestionsForStudent } = await import('../repositories/assessmentRepository.js');
+    const questoes = await listQuestionsForStudent(req.params.codigo);
+    res.json({ success: true, data: questoes });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // Inicia avaliação com TODOS os dados necessários
 assessmentRouter.post('/:codigo/start-complete', startCompleteAssessmentHandler);
 
