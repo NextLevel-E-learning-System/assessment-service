@@ -17,7 +17,8 @@ import {
   submitCompleteAssessmentHandler,
   getAttemptForReviewHandler,
   finalizeReviewHandler,
-  getUserAssessmentHistoryHandler
+  getUserAssessmentHistoryHandler,
+  getActiveAttemptHandler
 } from '../controllers/assessmentFlowController.js';
 import {
   listPendingReviewsHandler
@@ -53,6 +54,9 @@ assessmentRouter.get('/:codigo/questions/for-student', async (req, res, next) =>
     next(e);
   }
 });
+
+// Buscar tentativa ativa (em andamento)
+assessmentRouter.get('/:codigo/active-attempt', getActiveAttemptHandler);
 
 // Inicia avaliação com TODOS os dados necessários
 assessmentRouter.post('/:codigo/start-complete', startCompleteAssessmentHandler);

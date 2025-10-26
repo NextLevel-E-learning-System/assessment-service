@@ -3,7 +3,8 @@ import {
   startCompleteAssessment, 
   submitCompleteAssessment,
   getAttemptForReview,
-  applyReviewAndFinalize
+  applyReviewAndFinalize,
+  getActiveAttempt
 } from '../services/assessmentFlowService.js';
 import { HttpError } from '../utils/httpError.js';
 import { z } from 'zod';
@@ -63,12 +64,17 @@ export async function startCompleteAssessmentHandler(req: Request, res: Response
  */
 export async function submitCompleteAssessmentHandler(req: Request, res: Response, next: NextFunction) {
   try {
+    console.log('📝 Submissão de avaliação recebida:', JSON.stringify(req.body, null, 2));
+    
     const parsed = SubmitAssessmentSchema.safeParse(req.body);
     if (!parsed.success) {
+      console.error('❌ Erro de validação:', parsed.error.errors);
       throw new HttpError(400, 'validation_error', parsed.error.errors);
     }
 
     const result = await submitCompleteAssessment(parsed.data);
+    
+    console.log('✅ Avaliação submetida com sucesso:', result);
     
     res.json({
       success: true,
@@ -76,6 +82,7 @@ export async function submitCompleteAssessmentHandler(req: Request, res: Respons
       data: result
     });
   } catch (error) {
+    console.error('❌ Erro ao submeter avaliação:', error);
     next(error);
   }
 }
@@ -126,6 +133,39 @@ export async function finalizeReviewHandler(req: Request, res: Response, next: N
       message: 'Revisão finalizada com sucesso',
       data: result
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /assessments/v1/:codigo/active-attempt
+ * Busca tentativa em andamento se existir
+ */
+export async function getActiveAttemptHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { codigo } = req.params;
+    const funcionario_id = (req.headers['x-user-id'] as string) || req.query.funcionario_id as string;
+    
+    if (!funcionario_id) {
+      throw new HttpError(400, 'missing_user_id');
+    }
+
+    const result = await getActiveAttempt(codigo, funcionario_id);
+    
+    if (!result) {
+      res.json({
+        success: true,
+        message: 'Nenhuma tentativa ativa encontrada',
+        data: null
+      });
+    } else {
+      res.json({
+        success: true,
+        message: 'Tentativa ativa encontrada',
+        data: result
+      });
+    }
   } catch (error) {
     next(error);
   }

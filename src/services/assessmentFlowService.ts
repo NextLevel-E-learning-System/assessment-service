@@ -54,6 +54,71 @@ export interface SubmitAssessmentResponse {
 }
 
 /**
+ * Busca tentativa ativa (em andamento) para uma avaliação
+ */
+export async function getActiveAttempt(
+  avaliacao_codigo: string,
+  funcionario_id: string
+): Promise<StartAssessmentResponse | null> {
+  
+  // Buscar tentativa em andamento
+  const tentativaAtiva = await withClient(async c => {
+    const result = await c.query(
+      `SELECT * FROM assessment_service.tentativas 
+       WHERE avaliacao_id = $1 AND funcionario_id = $2 AND status = 'EM_ANDAMENTO'
+       ORDER BY criado_em DESC LIMIT 1`,
+      [avaliacao_codigo, funcionario_id]
+    );
+    return result.rows[0] || null;
+  });
+
+  if (!tentativaAtiva) {
+    return null;
+  }
+
+  // Buscar avaliação
+  const avaliacao = await findByCodigo(avaliacao_codigo);
+  if (!avaliacao) {
+    return null;
+  }
+
+  // Buscar questões
+  const questoes = await listQuestionsForStudent(avaliacao_codigo);
+
+  // Contar tentativas finalizadas anteriores
+  const tentativasAnteriores = await withClient(async c => {
+    const result = await c.query(
+      `SELECT COUNT(*) as count FROM assessment_service.tentativas 
+       WHERE avaliacao_id = $1 AND funcionario_id = $2 
+       AND status IN ('APROVADO', 'REPROVADO', 'PENDENTE_REVISAO', 'FINALIZADA')`,
+      [avaliacao_codigo, funcionario_id]
+    );
+    return parseInt(result.rows[0].count);
+  });
+
+  return {
+    tentativa: {
+      id: tentativaAtiva.id,
+      avaliacao_id: tentativaAtiva.avaliacao_id,
+      funcionario_id: tentativaAtiva.funcionario_id,
+      data_inicio: tentativaAtiva.data_inicio,
+      status: tentativaAtiva.status,
+      tempo_limite: avaliacao.tempo_limite || undefined,
+      tentativas_permitidas: avaliacao.tentativas_permitidas || undefined
+    },
+    avaliacao: {
+      codigo: avaliacao.codigo,
+      titulo: avaliacao.titulo,
+      tempo_limite: avaliacao.tempo_limite || undefined,
+      tentativas_permitidas: avaliacao.tentativas_permitidas || undefined,
+      nota_minima: avaliacao.nota_minima || undefined
+    },
+    questoes,
+    tentativas_anteriores: tentativasAnteriores
+  };
+}
+
+/**
  * Inicia uma avaliação retornando TODOS os dados necessários em uma única chamada
  */
 export async function startCompleteAssessment(
@@ -61,6 +126,12 @@ export async function startCompleteAssessment(
   funcionario_id: string
 ): Promise<StartAssessmentResponse> {
   
+  // 0. Verificar se já existe tentativa em andamento
+  const tentativaAtiva = await getActiveAttempt(avaliacao_codigo, funcionario_id);
+  if (tentativaAtiva) {
+    return tentativaAtiva; // Retorna tentativa existente
+  }
+
   // 1. Buscar avaliação
   const avaliacao = await findByCodigo(avaliacao_codigo);
   if (!avaliacao) {
@@ -194,7 +265,10 @@ export async function submitCompleteAssessment(
 
     for (const resposta of data.respostas) {
       const questao = questoesMap.get(resposta.questao_id);
-      if (!questao) continue;
+      if (!questao) {
+        console.warn(`Questão não encontrada: ${resposta.questao_id}`);
+        continue;
+      }
 
       let pontuacao: number | null = null;
 
@@ -207,25 +281,38 @@ export async function submitCompleteAssessment(
         if (!resposta.resposta_funcionario?.trim()) {
           pontuacao = 0;
         } else if (questao.tipo_questao === 'MULTIPLA_ESCOLHA' || questao.tipo_questao === 'VERDADEIRO_FALSO') {
-          pontuacao = resposta.resposta_funcionario.trim() === questao.resposta_correta ? questao.peso : 0;
+          // Normalizar resposta (trim e case insensitive para V/F)
+          const respostaClean = resposta.resposta_funcionario.trim();
+          const respostaCorretaClean = questao.resposta_correta?.trim() || '';
+          
+          // Comparação case-insensitive
+          const match = respostaClean.toLowerCase() === respostaCorretaClean.toLowerCase();
+          pontuacao = match ? questao.peso : 0;
+          
+          console.log(`Questão ${questao.id} (${questao.tipo_questao}): resposta="${respostaClean}", correta="${respostaCorretaClean}", match=${match}, pontuacao=${pontuacao}`);
         } else {
           pontuacao = 0; // Tipo não reconhecido
         }
       }
 
-      // Salvar resposta
-      await answerRepository.upsertAnswer({
-        tentativa_id: data.tentativa_id,
-        questao_id: resposta.questao_id,
-        resposta_funcionario: resposta.resposta_funcionario?.trim() || '',
-        pontuacao,
-        feedback: null
-      });
+      try {
+        // Salvar resposta
+        await answerRepository.upsertAnswer({
+          tentativa_id: data.tentativa_id,
+          questao_id: resposta.questao_id,
+          resposta_funcionario: resposta.resposta_funcionario?.trim() || '',
+          pontuacao,
+          feedback: null
+        });
 
-      respostasSalvas++;
-      
-      if (pontuacao !== null) {
-        respostasComPontuacao.push({ questao_id: resposta.questao_id, pontuacao });
+        respostasSalvas++;
+        
+        if (pontuacao !== null) {
+          respostasComPontuacao.push({ questao_id: resposta.questao_id, pontuacao });
+        }
+      } catch (error) {
+        console.error(`Erro ao salvar resposta ${resposta.questao_id}:`, error);
+        throw error;
       }
     }
 
