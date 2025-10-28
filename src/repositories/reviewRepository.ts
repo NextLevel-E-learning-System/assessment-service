@@ -122,18 +122,21 @@ export async function getAnswerFeedback(respostaId: string) {
 }
 
 // NOVA FUNCIONALIDADE: Listar tentativas pendentes de revisão (fila de correções)
-export async function listPendingReviews(limit: number = 50, offset: number = 0) {
+export async function listPendingReviews(limit: number = 50, offset: number = 0, curso_id?: string) {
   return withClient(async c => {
-    const r = await c.query(`
+    let query = `
       select 
         t.id as tentativa_id,
         t.funcionario_id,
-        t.avaliacao_id,
+        t.avaliacao_id as avaliacao_codigo,
         t.data_inicio,
+        t.data_fim as data_submissao,
         a.titulo as avaliacao_titulo,
+        a.curso_id,
         f.nome as funcionario_nome,
         f.email as funcionario_email,
-        count(q.id) as total_dissertativas
+        count(q.id) as questoes_dissertativas,
+        'PENDENTE_REVISAO' as status
       from assessment_service.tentativas t
       join assessment_service.avaliacoes a on a.codigo = t.avaliacao_id
       left join user_service.funcionarios f on f.id = t.funcionario_id
@@ -141,11 +144,37 @@ export async function listPendingReviews(limit: number = 50, offset: number = 0)
       join assessment_service.questoes q on q.id = r.questao_id
       where t.status = 'PENDENTE_REVISAO' 
       and q.tipo_questao = 'DISSERTATIVA'
-      group by t.id, t.funcionario_id, t.avaliacao_id, t.data_inicio, a.titulo, f.nome, f.email
-      order by t.data_inicio asc
-      limit $1 offset $2
-    `, [limit, offset]);
+    `;
     
-    return r.rows;
+    const params: (string | number)[] = [];
+    
+    if (curso_id) {
+      params.push(curso_id);
+      query += ` and a.curso_id = $${params.length}`;
+    }
+    
+    query += `
+      group by t.id, t.funcionario_id, t.avaliacao_id, t.data_inicio, t.data_fim, a.titulo, a.curso_id, f.nome, f.email
+      order by t.data_inicio asc
+      limit $${params.length + 1} offset $${params.length + 2}
+    `;
+    
+    params.push(limit, offset);
+    
+    const r = await c.query(query, params);
+    
+    return r.rows.map(row => ({
+      tentativa_id: row.tentativa_id,
+      avaliacao_codigo: row.avaliacao_codigo,
+      avaliacao_titulo: row.avaliacao_titulo,
+      funcionario: {
+        id: row.funcionario_id,
+        nome: row.funcionario_nome,
+        email: row.funcionario_email
+      },
+      data_submissao: row.data_submissao,
+      questoes_dissertativas: parseInt(row.questoes_dissertativas),
+      status: row.status
+    }));
   });
 }

@@ -156,6 +156,7 @@ export async function listPendingReviewsHandler(req: Request, res: Response) {
   try {
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = parseInt(req.query.offset as string) || 0;
+    const curso_id = req.query.curso_id as string | undefined;
     
     if (limit > 100) {
       return res.status(400).json({
@@ -164,10 +165,11 @@ export async function listPendingReviewsHandler(req: Request, res: Response) {
       });
     }
     
-    const pendingReviews = await listPendingReviews(limit, offset);
+    const pendingReviews = await listPendingReviews(limit, offset, curso_id);
     
     return res.json({
-      correcoes_pendentes: pendingReviews,
+      success: true,
+      data: pendingReviews,
       total: pendingReviews.length,
       limit,
       offset,
@@ -176,6 +178,7 @@ export async function listPendingReviewsHandler(req: Request, res: Response) {
   } catch (error) {
     console.error('Erro ao listar correções pendentes:', error);
     return res.status(500).json({ 
+      success: false,
       erro: 'erro_interno', 
       mensagem: 'Erro interno do servidor' 
     });
