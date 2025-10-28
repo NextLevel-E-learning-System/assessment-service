@@ -215,9 +215,12 @@ export async function startCompleteAssessment(
     ['APROVADO', 'REPROVADO', 'PENDENTE_REVISAO', 'FINALIZADA'].includes(t.status)
   );
   
-  // Verificar se já foi aprovado (nota >= 7.0)
+  // Obter nota mínima da avaliação
+  const notaMinima = avaliacao.nota_minima || 70;
+  
+  // Verificar se já foi aprovado (status APROVADO ou nota >= nota_minima)
   const aprovadas = finalizadas.filter(t => 
-    t.status === 'APROVADO' || (t.nota_obtida !== null && Number(t.nota_obtida) >= 7.0)
+    t.status === 'APROVADO' || (t.nota_obtida !== null && Number(t.nota_obtida) >= notaMinima)
   );
   
   if (aprovadas.length > 0) {
@@ -226,7 +229,7 @@ export async function startCompleteAssessment(
     });
   }
 
-  // Regra: Permite 2 tentativas (inicial + 1 recuperação se nota < 7.0)
+  // Regra: Permite 2 tentativas (inicial + 1 recuperação se nota < nota_minima)
   // Se já tem 2 tentativas finalizadas e nenhuma aprovada, bloquear
   if (finalizadas.length >= 2) {
     throw new HttpError(409, 'attempt_limit_reached', {
@@ -235,18 +238,18 @@ export async function startCompleteAssessment(
     });
   }
 
-  // Se tem 1 tentativa e foi >= 7.0, não permite nova tentativa
+  // Se tem 1 tentativa e foi >= nota_minima, não permite nova tentativa
   if (finalizadas.length === 1) {
     const primeiraNotaString = finalizadas[0].nota_obtida;
     if (primeiraNotaString !== null) {
       const primeiraNota = Number(primeiraNotaString);
-      if (primeiraNota >= 7.0) {
+      if (primeiraNota >= notaMinima) {
         throw new HttpError(409, 'already_passed', {
-          message: 'Você já foi aprovado com nota >= 7.0',
+          message: `Você já foi aprovado com nota >= ${notaMinima}`,
           nota: primeiraNota
         });
       }
-      // Se nota < 7.0, permite tentativa de recuperação (será a 2ª tentativa)
+      // Se nota < nota_minima, permite tentativa de recuperação (será a 2ª tentativa)
     }
   }
 
