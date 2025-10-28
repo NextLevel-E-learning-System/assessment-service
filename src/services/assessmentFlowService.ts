@@ -433,7 +433,7 @@ export async function getAttemptForReview(tentativa_id: string) {
   return withClient(async c => {
     // Buscar tentativa com dados da avaliação
     const tentativaResult = await c.query(
-      `SELECT t.*, a.titulo as avaliacao_titulo, a.nota_minima,
+      `SELECT t.*, a.titulo as avaliacao_titulo, a.nota_minima, a.codigo as avaliacao_codigo,
               f.nome as funcionario_nome, f.email as funcionario_email
        FROM assessment_service.tentativas t
        JOIN assessment_service.avaliacoes a ON t.avaliacao_id = a.codigo
@@ -459,31 +459,53 @@ export async function getAttemptForReview(tentativa_id: string) {
       [tentativa_id]
     );
 
+    // Separar questões dissertativas e objetivas
+    const questoesDissertativas = respostasResult.rows
+      .filter(r => r.tipo_questao === 'DISSERTATIVA')
+      .map(r => ({
+        questao_id: r.questao_id,
+        resposta_id: r.resposta_id,
+        enunciado: r.enunciado,
+        peso: Number(r.peso),
+        resposta_funcionario: r.resposta_funcionario,
+        pontuacao_atual: r.pontuacao ? Number(r.pontuacao) : undefined
+      }));
+
+    const respostasObjetivas = respostasResult.rows
+      .filter(r => r.tipo_questao !== 'DISSERTATIVA')
+      .map(r => ({
+        questao_id: r.questao_id,
+        resposta_funcionario: r.resposta_funcionario,
+        resposta_correta: r.resposta_correta,
+        pontuacao: Number(r.pontuacao || 0)
+      }));
+
+    const notaObjetivas = respostasObjetivas.length > 0
+      ? respostasObjetivas.reduce((sum, r) => sum + r.pontuacao, 0)
+      : undefined;
+
     return {
       tentativa: {
         id: tentativa.id,
-        funcionario_id: tentativa.funcionario_id,
-        funcionario_nome: tentativa.funcionario_nome,
-        funcionario_email: tentativa.funcionario_email,
         avaliacao_id: tentativa.avaliacao_id,
-        avaliacao_titulo: tentativa.avaliacao_titulo,
+        funcionario_id: tentativa.funcionario_id,
         data_inicio: tentativa.data_inicio,
         data_fim: tentativa.data_fim,
-        status: tentativa.status,
-        nota_obtida: tentativa.nota_obtida,
+        status: tentativa.status
+      },
+      avaliacao: {
+        codigo: tentativa.avaliacao_codigo,
+        titulo: tentativa.avaliacao_titulo,
         nota_minima: tentativa.nota_minima
       },
-      respostas: respostasResult.rows.map(r => ({
-        resposta_id: r.resposta_id,
-        questao_id: r.questao_id,
-        enunciado: r.enunciado,
-        tipo_questao: r.tipo_questao,
-        peso: Number(r.peso),
-        resposta_correta: r.resposta_correta,
-        resposta_funcionario: r.resposta_funcionario,
-        pontuacao: r.pontuacao,
-        feedback: r.feedback
-      }))
+      funcionario: {
+        id: tentativa.funcionario_id,
+        nome: tentativa.funcionario_nome,
+        email: tentativa.funcionario_email
+      },
+      questoes_dissertativas: questoesDissertativas,
+      respostas_objetivas: respostasObjetivas.length > 0 ? respostasObjetivas : undefined,
+      nota_objetivas: notaObjetivas
     };
   });
 }
@@ -526,9 +548,10 @@ export async function applyReviewAndFinalize(
       throw new HttpError(404, 'attempt_not_found');
     }
 
-    const { pontuacao_total, peso_total, nota_minima } = notaResult.rows[0];
+    const { pontuacao_total, peso_total, nota_minima, avaliacao_id } = notaResult.rows[0];
     const notaFinal = peso_total > 0 ? (Number(pontuacao_total) / Number(peso_total)) * 100 : 0;
-    const statusFinal = notaFinal >= (nota_minima || 70) ? 'APROVADO' : 'REPROVADO';
+    const passou = notaFinal >= (nota_minima || 70);
+    const statusFinal = passou ? 'APROVADO' : 'REPROVADO';
 
     // 3. Atualizar tentativa
     await c.query(
@@ -538,11 +561,35 @@ export async function applyReviewAndFinalize(
       [tentativa_id, statusFinal, notaFinal]
     );
 
+    // 4. Publicar evento
+    const { publishEvent } = await import('../events/publisher.js');
+    const { findByCodigo } = await import('../repositories/assessmentRepository.js');
+    
+    const assessment = await findByCodigo(avaliacao_id);
+    if (assessment) {
+      const tentativaData = await c.query(
+        'SELECT funcionario_id FROM assessment_service.tentativas WHERE id = $1',
+        [tentativa_id]
+      );
+      
+      if (tentativaData.rows[0]) {
+        const payload = { 
+          assessmentCode: assessment.codigo, 
+          courseId: assessment.curso_id, 
+          userId: tentativaData.rows[0].funcionario_id, 
+          score: notaFinal, 
+          passed: passou 
+        };
+        await publishEvent(passou ? 'assessment.passed.v1' : 'assessment.failed.v1', payload);
+      }
+    }
+
     return {
       tentativa_id,
-      nota_final: notaFinal,
       status: statusFinal,
-      correcoes_aplicadas: correcoes.length,
+      nota_final: notaFinal,
+      nota_minima: nota_minima,
+      passou,
       mensagem: `Correção finalizada. Nota: ${notaFinal.toFixed(1)}% (${statusFinal})`
     };
   });
