@@ -426,6 +426,62 @@ export async function submitCompleteAssessment(
       [data.tentativa_id, status, notaObtida]
     );
 
+    // 6. Se APROVADO, completar módulo automaticamente via progress-service
+    if (status === 'APROVADO') {
+      try {
+        // Buscar modulo_id da avaliação
+        const avaliacaoResult = await c.query(
+          `SELECT modulo_id FROM assessment_service.avaliacoes WHERE codigo = $1`,
+          [tentativa.avaliacao_codigo]
+        );
+
+        if (avaliacaoResult.rows.length > 0 && avaliacaoResult.rows[0].modulo_id) {
+          const modulo_id = avaliacaoResult.rows[0].modulo_id;
+
+          // Buscar inscricao_id do funcionário para este curso
+          const inscricaoResult = await c.query(
+            `SELECT i.id as inscricao_id
+             FROM progress_service.inscricoes i
+             JOIN course_service.modulos m ON m.curso_id = i.curso_id
+             WHERE i.funcionario_id = $1 AND m.id = $2
+             LIMIT 1`,
+            [tentativa.funcionario_id, modulo_id]
+          );
+
+          if (inscricaoResult.rows.length > 0) {
+            const inscricao_id = inscricaoResult.rows[0].inscricao_id;
+
+            // Completar módulo via progress-service
+            const progressServiceUrl = process.env.PROGRESS_SERVICE_URL;
+            if (progressServiceUrl) {
+              console.log(`✅ Tentando completar módulo ${modulo_id} automaticamente após aprovação`);
+              
+              const completeUrl = `${progressServiceUrl}/progress/v1/modulos/${modulo_id}/complete`;
+              const completeResp = await fetch(completeUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-User-Id': tentativa.funcionario_id
+                },
+                body: JSON.stringify({ inscricao_id })
+              });
+
+              if (completeResp.ok) {
+                console.log(`✅ Módulo ${modulo_id} concluído automaticamente`);
+              } else {
+                console.warn(`⚠️ Falha ao completar módulo automaticamente: ${completeResp.status}`);
+              }
+            }
+          } else {
+            console.warn('⚠️ Inscrição não encontrada para completar módulo');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Erro ao completar módulo automaticamente:', error);
+        // Não propagar erro - avaliação já foi aprovada com sucesso
+      }
+    }
+
     const questoesDissertativasPendentes = temDissertativas ? 
       questoes.filter(q => q.tipo_questao === 'DISSERTATIVA').length : 0;
 
@@ -582,6 +638,67 @@ export async function applyReviewAndFinalize(
        WHERE id = $1`,
       [tentativa_id, statusFinal, notaFinal]
     );
+
+    // 3.5. Se APROVADO, completar módulo automaticamente via progress-service
+    if (statusFinal === 'APROVADO') {
+      try {
+        // Buscar funcionario_id e modulo_id
+        const tentativaResult = await c.query(
+          `SELECT t.funcionario_id, a.modulo_id, a.codigo
+           FROM assessment_service.tentativas t
+           JOIN assessment_service.avaliacoes a ON t.avaliacao_id = a.codigo
+           WHERE t.id = $1`,
+          [tentativa_id]
+        );
+
+        if (tentativaResult.rows.length > 0) {
+          const { funcionario_id, modulo_id } = tentativaResult.rows[0];
+
+          if (modulo_id) {
+            // Buscar inscricao_id
+            const inscricaoResult = await c.query(
+              `SELECT i.id as inscricao_id
+               FROM progress_service.inscricoes i
+               JOIN course_service.modulos m ON m.curso_id = i.curso_id
+               WHERE i.funcionario_id = $1 AND m.id = $2
+               LIMIT 1`,
+              [funcionario_id, modulo_id]
+            );
+
+            if (inscricaoResult.rows.length > 0) {
+              const inscricao_id = inscricaoResult.rows[0].inscricao_id;
+
+              // Completar módulo via progress-service
+              const progressServiceUrl = process.env.PROGRESS_SERVICE_URL;
+              if (progressServiceUrl) {
+                console.log(`✅ Tentando completar módulo ${modulo_id} automaticamente após aprovação na revisão`);
+                
+                const completeUrl = `${progressServiceUrl}/progress/v1/modulos/${modulo_id}/complete`;
+                const completeResp = await fetch(completeUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-User-Id': funcionario_id
+                  },
+                  body: JSON.stringify({ inscricao_id })
+                });
+
+                if (completeResp.ok) {
+                  console.log(`✅ Módulo ${modulo_id} concluído automaticamente após revisão`);
+                } else {
+                  console.warn(`⚠️ Falha ao completar módulo automaticamente: ${completeResp.status}`);
+                }
+              }
+            } else {
+              console.warn('⚠️ Inscrição não encontrada para completar módulo');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('❌ Erro ao completar módulo automaticamente após revisão:', error);
+        // Não propagar erro - avaliação já foi aprovada com sucesso
+      }
+    }
 
     // 4. Publicar evento
     const { publishEvent } = await import('../events/publisher.js');
