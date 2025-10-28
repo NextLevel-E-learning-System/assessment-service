@@ -53,22 +53,22 @@ export async function applyReview(attemptId: string, scores: ReviewScoreInput[])
         );
       }
 
-      // Recalcular nota total da tentativa (incluindo todas as questões)
+      // Recalcular nota total da tentativa de forma ponderada
+      // Para cada questão: pontuacao (0-100) × peso
+      // Soma tudo e divide pela soma dos pesos → resultado 0-100
       const agg = await c.query(`
         select 
-          coalesce(sum(case 
-            when q.tipo_questao = 'DISSERTATIVA' and r.pontuacao is not null then r.pontuacao
-            when q.tipo_questao in ('MULTIPLA_ESCOLHA', 'VERDADEIRO_FALSO') and r.pontuacao is not null then r.pontuacao
-            else 0
-          end), 0) as soma_pontos, 
+          coalesce(sum(r.pontuacao * q.peso), 0) as soma_ponderada,
           coalesce(sum(q.peso), 0) as soma_pesos_total
         from assessment_service.respostas r
         join assessment_service.questoes q on q.id = r.questao_id
-        where r.tentativa_id = $1
+        where r.tentativa_id = $1 and r.pontuacao is not null
       `, [attemptId]);
 
-      const { soma_pontos, soma_pesos_total } = agg.rows[0];
-      const nota = (Number(soma_pesos_total) > 0) ? (Number(soma_pontos) / Number(soma_pesos_total)) * 100 : 0;
+      const { soma_ponderada, soma_pesos_total } = agg.rows[0];
+      const nota = (Number(soma_pesos_total) > 0) ? (Number(soma_ponderada) / Number(soma_pesos_total)) : 0;
+      
+      console.log(`Recálculo nota (reviewRepository): soma_ponderada=${soma_ponderada}, peso_total=${soma_pesos_total}, nota=${nota}`);
       
       await c.query(
         'update assessment_service.tentativas set nota_obtida = $2 where id = $1',

@@ -351,11 +351,13 @@ export async function submitCompleteAssessment(
           const respostaClean = resposta.resposta_funcionario.trim();
           const respostaCorretaClean = questao.resposta_correta?.trim() || '';
           
-          // Comparação case-insensitive - SEMPRE salva número (peso ou 0)
+          // Comparação case-insensitive
+          // Pontuação é sempre 100 (correto) ou 0 (errado)
+          // O peso é usado apenas no cálculo final da nota
           const match = respostaClean.toLowerCase() === respostaCorretaClean.toLowerCase();
-          pontuacao = match ? Number(questao.peso) : 0; // SEMPRE 0 se errado, nunca null
+          pontuacao = match ? 100 : 0;
           
-          console.log(`Questão ${questao.id} (${questao.tipo_questao}): resposta="${respostaClean}", correta="${respostaCorretaClean}", match=${match}, pontuacao=${pontuacao}`);
+          console.log(`Questão ${questao.id} (${questao.tipo_questao}): resposta="${respostaClean}", correta="${respostaCorretaClean}", match=${match}, pontuacao=${pontuacao}, peso=${questao.peso}`);
         } else {
           pontuacao = 0; // Tipo não reconhecido = 0 pontos
         }
@@ -389,11 +391,24 @@ export async function submitCompleteAssessment(
     if (temDissertativas) {
       status = 'PENDENTE_REVISAO';
     } else {
-      // Calcular nota final
-      const pesoTotal = questoes.reduce((sum, q) => sum + Number(q.peso), 0);
-      const pontuacaoTotal = respostasComPontuacao.reduce((sum, r) => sum + r.pontuacao, 0);
+      // Calcular nota final ponderada
+      // Para cada questão: pontuacao (0-100) × peso
+      // Soma tudo e divide pela soma dos pesos
+      // Resultado final: 0-100
+      let somaPonderada = 0;
+      let pesoTotal = 0;
       
-      notaObtida = pesoTotal > 0 ? (pontuacaoTotal / pesoTotal) * 100 : 0;
+      for (const questao of questoes) {
+        const resposta = respostasComPontuacao.find(r => r.questao_id === questao.id);
+        if (resposta) {
+          somaPonderada += resposta.pontuacao * Number(questao.peso);
+          pesoTotal += Number(questao.peso);
+        }
+      }
+      
+      notaObtida = pesoTotal > 0 ? (somaPonderada / pesoTotal) : 0;
+      
+      console.log(`Cálculo nota: somaPonderada=${somaPonderada}, pesoTotal=${pesoTotal}, notaFinal=${notaObtida}`);
       
       // Determinar status final
       const notaMinima = tentativa.nota_minima || 70;
@@ -528,10 +543,12 @@ export async function applyReviewAndFinalize(
       );
     }
 
-    // 2. Recalcular nota final
+    // 2. Recalcular nota final ponderada
+    // Para cada resposta: pontuacao (0-100) × peso da questão
+    // Soma tudo e divide pela soma dos pesos → resultado 0-100
     const notaResult = await c.query(
       `SELECT 
-         SUM(r.pontuacao) as pontuacao_total,
+         SUM(r.pontuacao * q.peso) as soma_ponderada,
          SUM(q.peso) as peso_total,
          t.avaliacao_id,
          a.nota_minima
@@ -548,10 +565,12 @@ export async function applyReviewAndFinalize(
       throw new HttpError(404, 'attempt_not_found');
     }
 
-    const { pontuacao_total, peso_total, nota_minima, avaliacao_id } = notaResult.rows[0];
-    const notaFinal = peso_total > 0 ? (Number(pontuacao_total) / Number(peso_total)) * 100 : 0;
+    const { soma_ponderada, peso_total, nota_minima, avaliacao_id } = notaResult.rows[0];
+    const notaFinal = peso_total > 0 ? (Number(soma_ponderada) / Number(peso_total)) : 0;
     const passou = notaFinal >= (nota_minima || 70);
     const statusFinal = passou ? 'APROVADO' : 'REPROVADO';
+    
+    console.log(`Finalização revisão: soma_ponderada=${soma_ponderada}, peso_total=${peso_total}, notaFinal=${notaFinal}`);
 
     // 3. Atualizar tentativa
     await c.query(
