@@ -426,9 +426,11 @@ export async function submitCompleteAssessment(
       [data.tentativa_id, status, notaObtida]
     );
 
-    // 6. Se APROVADO, completar módulo automaticamente via progress-service
+    // 6. Se APROVADO, completar módulo automaticamente atualizando progress_service.progresso_modulos
     if (status === 'APROVADO') {
       try {
+        console.log(`✅ Tentativa aprovada! Completando módulo automaticamente...`);
+        
         // Buscar modulo_id da avaliação
         const avaliacaoResult = await c.query(
           `SELECT modulo_id FROM assessment_service.avaliacoes WHERE codigo = $1`,
@@ -451,30 +453,29 @@ export async function submitCompleteAssessment(
           if (inscricaoResult.rows.length > 0) {
             const inscricao_id = inscricaoResult.rows[0].inscricao_id;
 
-            // Completar módulo via progress-service
-            const progressServiceUrl = process.env.PROGRESS_SERVICE_URL;
-            if (progressServiceUrl) {
-              console.log(`✅ Tentando completar módulo ${modulo_id} automaticamente após aprovação`);
-              
-              const completeUrl = `${progressServiceUrl}/progress/v1/modulos/${modulo_id}/complete`;
-              const completeResp = await fetch(completeUrl, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'X-User-Id': tentativa.funcionario_id
-                },
-                body: JSON.stringify({ inscricao_id })
-              });
+            // Atualizar data_conclusao diretamente no banco
+            const updateResult = await c.query(
+              `UPDATE progress_service.progresso_modulos 
+               SET data_conclusao = NOW(),
+                   tempo_gasto = EXTRACT(EPOCH FROM (NOW() - data_inicio))::integer,
+                   atualizado_em = NOW()
+               WHERE inscricao_id = $1 
+                 AND modulo_id = $2 
+                 AND data_conclusao IS NULL
+               RETURNING id`,
+              [inscricao_id, modulo_id]
+            );
 
-              if (completeResp.ok) {
-                console.log(`✅ Módulo ${modulo_id} concluído automaticamente`);
-              } else {
-                console.warn(`⚠️ Falha ao completar módulo automaticamente: ${completeResp.status}`);
-              }
+            if (updateResult.rows.length > 0) {
+              console.log(`✅ Módulo ${modulo_id} concluído automaticamente após aprovação na avaliação`);
+            } else {
+              console.warn(`⚠️ Módulo ${modulo_id} já estava concluído ou não foi iniciado`);
             }
           } else {
             console.warn('⚠️ Inscrição não encontrada para completar módulo');
           }
+        } else {
+          console.warn('⚠️ Avaliação não possui modulo_id associado');
         }
       } catch (error) {
         console.error('❌ Erro ao completar módulo automaticamente:', error);
@@ -639,9 +640,11 @@ export async function applyReviewAndFinalize(
       [tentativa_id, statusFinal, notaFinal]
     );
 
-    // 3.5. Se APROVADO, completar módulo automaticamente via progress-service
+    // 3.5. Se APROVADO, completar módulo automaticamente atualizando progress_service.progresso_modulos
     if (statusFinal === 'APROVADO') {
       try {
+        console.log(`✅ Revisão aprovada! Completando módulo automaticamente...`);
+        
         // Buscar funcionario_id e modulo_id
         const tentativaResult = await c.query(
           `SELECT t.funcionario_id, a.modulo_id, a.codigo
@@ -668,30 +671,29 @@ export async function applyReviewAndFinalize(
             if (inscricaoResult.rows.length > 0) {
               const inscricao_id = inscricaoResult.rows[0].inscricao_id;
 
-              // Completar módulo via progress-service
-              const progressServiceUrl = process.env.PROGRESS_SERVICE_URL;
-              if (progressServiceUrl) {
-                console.log(`✅ Tentando completar módulo ${modulo_id} automaticamente após aprovação na revisão`);
-                
-                const completeUrl = `${progressServiceUrl}/progress/v1/modulos/${modulo_id}/complete`;
-                const completeResp = await fetch(completeUrl, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'X-User-Id': funcionario_id
-                  },
-                  body: JSON.stringify({ inscricao_id })
-                });
+              // Atualizar data_conclusao diretamente no banco
+              const updateResult = await c.query(
+                `UPDATE progress_service.progresso_modulos 
+                 SET data_conclusao = NOW(),
+                     tempo_gasto = EXTRACT(EPOCH FROM (NOW() - data_inicio))::integer,
+                     atualizado_em = NOW()
+                 WHERE inscricao_id = $1 
+                   AND modulo_id = $2 
+                   AND data_conclusao IS NULL
+                 RETURNING id`,
+                [inscricao_id, modulo_id]
+              );
 
-                if (completeResp.ok) {
-                  console.log(`✅ Módulo ${modulo_id} concluído automaticamente após revisão`);
-                } else {
-                  console.warn(`⚠️ Falha ao completar módulo automaticamente: ${completeResp.status}`);
-                }
+              if (updateResult.rows.length > 0) {
+                console.log(`✅ Módulo ${modulo_id} concluído automaticamente após aprovação na revisão`);
+              } else {
+                console.warn(`⚠️ Módulo ${modulo_id} já estava concluído ou não foi iniciado`);
               }
             } else {
               console.warn('⚠️ Inscrição não encontrada para completar módulo');
             }
+          } else {
+            console.warn('⚠️ Avaliação não possui modulo_id associado');
           }
         }
       } catch (error) {
