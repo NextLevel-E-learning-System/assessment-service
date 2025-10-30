@@ -674,7 +674,7 @@ export async function getAttemptForReview(tentativa_id: string) {
     // Buscar questões com respostas
     const respostasResult = await c.query(
       `SELECT r.id as resposta_id, r.resposta_funcionario, r.pontuacao, r.feedback,
-              q.id as questao_id, q.enunciado, q.tipo_questao, q.peso, q.resposta_correta
+        q.id as questao_id, q.enunciado, q.tipo_questao, q.peso, q.resposta_correta, q.opcoes_resposta
        FROM assessment_service.respostas r
        JOIN assessment_service.questoes q ON r.questao_id = q.id
        WHERE r.tentativa_id = $1
@@ -695,17 +695,41 @@ export async function getAttemptForReview(tentativa_id: string) {
         feedback_atual: r.feedback || undefined
       }));
 
+    const parseOpcoesResposta = (raw: unknown): string[] | undefined => {
+      if (!raw) return undefined;
+      if (Array.isArray(raw)) {
+        return (raw as unknown[]).filter((item): item is string => typeof item === 'string');
+      }
+
+      if (typeof raw === 'string') {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            return parsed.filter((item): item is string => typeof item === 'string');
+          }
+        } catch {
+          // Ignorar erro de parse – formato inesperado
+        }
+      }
+
+      return undefined;
+    };
+
     const respostasObjetivas = respostasResult.rows
       .filter(r => r.tipo_questao !== 'DISSERTATIVA')
       .map(r => ({
         questao_id: r.questao_id,
+        enunciado: r.enunciado,
+        tipo: r.tipo_questao,
+        peso: Number(r.peso),
         resposta_funcionario: r.resposta_funcionario,
         resposta_correta: r.resposta_correta,
-        pontuacao: Number(r.pontuacao || 0)
+        pontuacao: r.pontuacao !== null ? Number(r.pontuacao) : null,
+        opcoes_resposta: parseOpcoesResposta(r.opcoes_resposta)
       }));
 
     const notaObjetivas = respostasObjetivas.length > 0
-      ? respostasObjetivas.reduce((sum, r) => sum + r.pontuacao, 0)
+      ? respostasObjetivas.reduce((sum, r) => sum + (r.pontuacao ?? 0), 0)
       : undefined;
 
     return {
@@ -715,7 +739,8 @@ export async function getAttemptForReview(tentativa_id: string) {
         funcionario_id: tentativa.funcionario_id,
         data_inicio: tentativa.data_inicio,
         data_fim: tentativa.data_fim,
-        status: tentativa.status
+        status: tentativa.status,
+        nota_obtida: tentativa.nota_obtida !== null ? Number(tentativa.nota_obtida) : null
       },
       avaliacao: {
         codigo: tentativa.avaliacao_codigo,
