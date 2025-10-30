@@ -4,20 +4,20 @@ import { z } from 'zod';
 export const createAttemptSchema = z.object({
   funcionario_id: z.string().uuid('ID do funcionário deve ser um UUID válido'),
   avaliacao_id: z.string().min(1, 'ID da avaliação é obrigatório'),
-  status: z.enum(['EM_ANDAMENTO', 'FINALIZADA', 'APROVADO', 'REPROVADO', 'PENDENTE_REVISAO', 'EXPIRADA']).optional()
+  status: z.enum(['EM_ANDAMENTO','APROVADO', 'REPROVADO', 'AGUARDANDO_CORRECAO']).optional()
 });
 
 export const updateAttemptSchema = z.object({
   data_fim: z.string().datetime().optional(),
   nota_obtida: z.number().min(0).max(10).optional(),
-  status: z.enum(['EM_ANDAMENTO', 'FINALIZADA', 'APROVADO', 'REPROVADO', 'PENDENTE_REVISAO', 'EXPIRADA']).optional()
+  status: z.enum([ 'EM_ANDAMENTO', 'APROVADO', 'REPROVADO', 'AGUARDANDO_CORRECAO']).optional()
 }).refine(data => Object.keys(data).length > 0, {
   message: 'Pelo menos um campo deve ser fornecido para atualização'
 });
 
 export const finalizeAttemptSchema = z.object({
   nota_obtida: z.number().min(0).max(10).optional(),
-  status: z.enum(['FINALIZADA', 'APROVADO', 'REPROVADO']).optional()
+  status: z.enum(['APROVADO', 'REPROVADO']).optional()
 });
 
 // Schemas para respostas

@@ -136,13 +136,13 @@ export async function listPendingReviews(limit: number = 50, offset: number = 0,
         f.nome as funcionario_nome,
         f.email as funcionario_email,
         count(q.id) as questoes_dissertativas,
-        'PENDENTE_REVISAO' as status
+        'AGUARDANDO_CORRECAO' as status
       from assessment_service.tentativas t
       join assessment_service.avaliacoes a on a.codigo = t.avaliacao_id
       left join user_service.funcionarios f on f.id = t.funcionario_id
       join assessment_service.respostas r on r.tentativa_id = t.id
       join assessment_service.questoes q on q.id = r.questao_id
-      where t.status = 'PENDENTE_REVISAO' 
+      where t.status = 'AGUARDANDO_CORRECAO' 
       and q.tipo_questao = 'DISSERTATIVA'
     `;
     

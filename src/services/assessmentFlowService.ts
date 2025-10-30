@@ -1,4 +1,5 @@
 // Novo serviço para fluxos consolidados de avaliação
+import type { PoolClient } from 'pg';
 import { withClient } from '../db.js';
 import { findByCodigo, listQuestionsForStudent } from '../repositories/assessmentRepository.js';
 import * as attemptRepository from '../repositories/attemptRepository.js';
@@ -44,13 +45,189 @@ export interface SubmitAssessmentRequest {
 
 export interface SubmitAssessmentResponse {
   tentativa_id: string;
-  status: 'FINALIZADA' | 'PENDENTE_REVISAO' | 'APROVADO' | 'REPROVADO';
+  status: 'AGUARDANDO_CORRECAO' | 'APROVADO' | 'REPROVADO';
   nota_obtida?: number | null;
   nota_minima?: number | null;
   tem_dissertativas: boolean;
   questoes_dissertativas_pendentes?: number;
   respostas_salvas: number;
   mensagem: string;
+}
+
+async function syncProgressAfterModuleCompletion(
+  client: PoolClient,
+  funcionarioId: string,
+  moduloId: string,
+  cursoIdHint: string | null,
+  origin: 'submission' | 'review'
+): Promise<void> {
+  try {
+    const moduleInfoResult = await client.query(
+      `SELECT curso_id, xp_modulo FROM course_service.modulos WHERE id = $1`,
+      [moduloId]
+    );
+
+    if (moduleInfoResult.rows.length === 0) {
+      console.warn(`[progress-sync:${origin}] módulo ${moduloId} não encontrado na tabela course_service.modulos`);
+      return;
+    }
+
+    const moduleInfo = moduleInfoResult.rows[0];
+    const cursoId = (cursoIdHint || moduleInfo.curso_id) as string | null;
+
+    if (!cursoId) {
+      console.warn(`[progress-sync:${origin}] módulo ${moduloId} não possui curso associado`);
+      return;
+    }
+
+    const xpModulo = Number(moduleInfo.xp_modulo || 0);
+
+    const enrollmentResult = await client.query(
+      `SELECT id
+         FROM progress_service.inscricoes
+        WHERE funcionario_id = $1
+          AND curso_id = $2
+        ORDER BY data_inscricao DESC
+        LIMIT 1`,
+      [funcionarioId, cursoId]
+    );
+
+    if (enrollmentResult.rows.length === 0) {
+      console.warn(`[progress-sync:${origin}] inscrição não encontrada para funcionário ${funcionarioId} no curso ${cursoId}`);
+      return;
+    }
+
+    const inscricaoId = enrollmentResult.rows[0].id as string;
+
+    const progressResult = await client.query(
+      `SELECT id, data_inicio, data_conclusao
+         FROM progress_service.progresso_modulos
+        WHERE inscricao_id = $1
+          AND modulo_id = $2
+        FOR UPDATE`,
+      [inscricaoId, moduloId]
+    );
+
+    let moduleCompletedNow = false;
+
+    if (progressResult.rows.length === 0) {
+      await client.query(
+        `INSERT INTO progress_service.progresso_modulos
+           (id, inscricao_id, modulo_id, data_inicio, data_conclusao, tempo_gasto, criado_em, atualizado_em)
+         VALUES (gen_random_uuid(), $1, $2, NOW(), NOW(), 1, NOW(), NOW())`,
+        [inscricaoId, moduloId]
+      );
+      moduleCompletedNow = true;
+    } else {
+      const progressRow = progressResult.rows[0];
+      if (progressRow.data_conclusao) {
+        console.log(
+          `[progress-sync:${origin}] módulo ${moduloId} já estava concluído para inscrição ${inscricaoId}`
+        );
+      } else {
+        const startedAt = progressRow.data_inicio ? new Date(progressRow.data_inicio) : new Date();
+        const tempoGastoMin = Math.max(1, Math.round((Date.now() - startedAt.getTime()) / 60000));
+
+        await client.query(
+          `UPDATE progress_service.progresso_modulos
+              SET data_inicio   = COALESCE(data_inicio, NOW()),
+                  data_conclusao = NOW(),
+                  tempo_gasto    = $3,
+                  atualizado_em  = NOW()
+            WHERE inscricao_id = $1
+              AND modulo_id    = $2`,
+          [inscricaoId, moduloId, tempoGastoMin]
+        );
+
+        moduleCompletedNow = true;
+      }
+    }
+
+    if (moduleCompletedNow && xpModulo > 0) {
+      await client.query(
+        `UPDATE user_service.funcionarios
+            SET xp_total = xp_total + $1,
+                nivel = CASE
+                  WHEN xp_total + $1 >= 3000 THEN 'Avançado'
+                  WHEN xp_total + $1 >= 1000 THEN 'Intermediário'
+                  ELSE 'Iniciante'
+                END,
+                atualizado_em = NOW()
+          WHERE id = $2`,
+        [xpModulo, funcionarioId]
+      );
+    }
+
+    const totalObrigatoriosResult = await client.query(
+      `SELECT COUNT(*)::int AS total
+         FROM course_service.modulos
+        WHERE curso_id = $1
+          AND obrigatorio = TRUE`,
+      [cursoId]
+    );
+
+    const concluidosObrigatoriosResult = await client.query(
+      `SELECT COUNT(*)::int AS concluidos
+         FROM progress_service.progresso_modulos pm
+         JOIN course_service.modulos m ON m.id = pm.modulo_id
+        WHERE pm.inscricao_id = $1
+          AND m.obrigatorio = TRUE
+          AND pm.data_conclusao IS NOT NULL`,
+      [inscricaoId]
+    );
+
+    const totalObrigatorios = Number(totalObrigatoriosResult.rows[0]?.total || 0);
+    const concluidosObrigatorios = Number(concluidosObrigatoriosResult.rows[0]?.concluidos || 0);
+
+    let progressoPercentual = 0;
+
+    if (totalObrigatorios > 0) {
+      progressoPercentual = Math.round((concluidosObrigatorios / totalObrigatorios) * 100);
+    } else {
+      const totalModulosResult = await client.query(
+        `SELECT COUNT(*)::int AS total
+           FROM course_service.modulos
+          WHERE curso_id = $1`,
+        [cursoId]
+      );
+
+      const concluidosTotaisResult = await client.query(
+        `SELECT COUNT(*)::int AS concluidos
+           FROM progress_service.progresso_modulos
+          WHERE inscricao_id = $1
+            AND data_conclusao IS NOT NULL`,
+        [inscricaoId]
+      );
+
+      const totalModulos = Number(totalModulosResult.rows[0]?.total || 0);
+      const concluidosTotais = Number(concluidosTotaisResult.rows[0]?.concluidos || 0);
+
+      progressoPercentual = totalModulos > 0 ? Math.round((concluidosTotais / totalModulos) * 100) : 0;
+    }
+
+  progressoPercentual = Math.max(0, Math.min(100, progressoPercentual));
+
+  const statusFinal = progressoPercentual >= 100 ? 'CONCLUIDO' : 'EM_ANDAMENTO';
+
+    await client.query(
+      `UPDATE progress_service.inscricoes
+          SET progresso_percentual = $1,
+              status = $2,
+              data_conclusao = CASE
+                WHEN $2 = 'CONCLUIDO' THEN COALESCE(data_conclusao, NOW())
+                ELSE data_conclusao
+              END,
+              atualizado_em = NOW()
+        WHERE id = $3`,
+      [progressoPercentual, statusFinal, inscricaoId]
+    );
+
+    console.log(
+      `[progress-sync:${origin}] inscrição ${inscricaoId} sincronizada (progresso=${progressoPercentual}%, status=${statusFinal})`
+    );
+  } catch (error) {
+    console.error(`[progress-sync:${origin}] erro ao sincronizar progresso automaticamente`, error);
+  }
 }
 
 /**
@@ -90,7 +267,7 @@ export async function getActiveAttempt(
     const result = await c.query(
       `SELECT COUNT(*) as count FROM assessment_service.tentativas 
        WHERE avaliacao_id = $1 AND funcionario_id = $2 
-       AND status IN ('APROVADO', 'REPROVADO', 'PENDENTE_REVISAO', 'FINALIZADA')`,
+       AND status IN ('APROVADO', 'REPROVADO', 'AGUARDANDO_CORRECAO')`,
       [avaliacao_codigo, funcionario_id]
     );
     return parseInt(result.rows[0].count);
@@ -212,7 +389,7 @@ export async function startCompleteAssessment(
   });
 
   const finalizadas = tentativasAnteriores.filter(t => 
-    ['APROVADO', 'REPROVADO', 'PENDENTE_REVISAO', 'FINALIZADA'].includes(t.status)
+    ['APROVADO', 'REPROVADO', 'AGUARDANDO_CORRECAO'].includes(t.status)
   );
   
   // Obter nota mínima da avaliação
@@ -392,7 +569,7 @@ export async function submitCompleteAssessment(
     let status: string;
 
     if (temDissertativas) {
-      status = 'PENDENTE_REVISAO';
+      status = 'AGUARDANDO_CORRECAO';
     } else {
       // Calcular nota final ponderada
       // Para cada questão: pontuacao (0-100) × peso
@@ -426,60 +603,31 @@ export async function submitCompleteAssessment(
       [data.tentativa_id, status, notaObtida]
     );
 
-    // 6. Se APROVADO, completar módulo automaticamente atualizando progress_service.progresso_modulos
+    // 6. Se APROVADO, sincronizar progresso automaticamente
     if (status === 'APROVADO') {
       try {
-        console.log(`✅ Tentativa aprovada! Completando módulo automaticamente...`);
-        
-        // Buscar modulo_id da avaliação
-        const avaliacaoResult = await c.query(
-          `SELECT modulo_id FROM assessment_service.avaliacoes WHERE codigo = $1`,
+        const avaliacaoRow = await c.query(
+          `SELECT modulo_id, curso_id
+             FROM assessment_service.avaliacoes
+            WHERE codigo = $1`,
           [tentativa.avaliacao_codigo]
         );
 
-        if (avaliacaoResult.rows.length > 0 && avaliacaoResult.rows[0].modulo_id) {
-          const modulo_id = avaliacaoResult.rows[0].modulo_id;
+        if (avaliacaoRow.rows.length > 0 && avaliacaoRow.rows[0].modulo_id) {
+          const { modulo_id, curso_id } = avaliacaoRow.rows[0];
 
-          // Buscar inscricao_id do funcionário para este curso
-          const inscricaoResult = await c.query(
-            `SELECT i.id as inscricao_id
-             FROM progress_service.inscricoes i
-             JOIN course_service.modulos m ON m.curso_id = i.curso_id
-             WHERE i.funcionario_id = $1 AND m.id = $2
-             LIMIT 1`,
-            [tentativa.funcionario_id, modulo_id]
+          await syncProgressAfterModuleCompletion(
+            c,
+            tentativa.funcionario_id,
+            modulo_id,
+            curso_id || null,
+            'submission'
           );
-
-          if (inscricaoResult.rows.length > 0) {
-            const inscricao_id = inscricaoResult.rows[0].inscricao_id;
-
-            // Atualizar data_conclusao diretamente no banco
-            const updateResult = await c.query(
-              `UPDATE progress_service.progresso_modulos 
-               SET data_conclusao = NOW(),
-                   tempo_gasto = EXTRACT(EPOCH FROM (NOW() - data_inicio))::integer,
-                   atualizado_em = NOW()
-               WHERE inscricao_id = $1 
-                 AND modulo_id = $2 
-                 AND data_conclusao IS NULL
-               RETURNING id`,
-              [inscricao_id, modulo_id]
-            );
-
-            if (updateResult.rows.length > 0) {
-              console.log(`✅ Módulo ${modulo_id} concluído automaticamente após aprovação na avaliação`);
-            } else {
-              console.warn(`⚠️ Módulo ${modulo_id} já estava concluído ou não foi iniciado`);
-            }
-          } else {
-            console.warn('⚠️ Inscrição não encontrada para completar módulo');
-          }
         } else {
-          console.warn('⚠️ Avaliação não possui modulo_id associado');
+          console.warn('⚠️ Avaliação não possui módulo associado; não foi possível sincronizar progresso');
         }
       } catch (error) {
-        console.error('❌ Erro ao completar módulo automaticamente:', error);
-        // Não propagar erro - avaliação já foi aprovada com sucesso
+        console.error('❌ Erro ao sincronizar progresso após aprovação na avaliação:', error);
       }
     }
 
@@ -488,7 +636,7 @@ export async function submitCompleteAssessment(
 
     return {
       tentativa_id: data.tentativa_id,
-      status: status as 'FINALIZADA' | 'PENDENTE_REVISAO' | 'APROVADO' | 'REPROVADO',
+      status: status as  'AGUARDANDO_CORRECAO' | 'APROVADO' | 'REPROVADO',
       nota_obtida: notaObtida,
       nota_minima: tentativa.nota_minima,
       tem_dissertativas: temDissertativas,
@@ -640,65 +788,34 @@ export async function applyReviewAndFinalize(
       [tentativa_id, statusFinal, notaFinal]
     );
 
-    // 3.5. Se APROVADO, completar módulo automaticamente atualizando progress_service.progresso_modulos
+    // 3.5. Se APROVADO, sincronizar progresso automaticamente
     if (statusFinal === 'APROVADO') {
       try {
-        console.log(`✅ Revisão aprovada! Completando módulo automaticamente...`);
-        
-        // Buscar funcionario_id e modulo_id
         const tentativaResult = await c.query(
-          `SELECT t.funcionario_id, a.modulo_id, a.codigo
-           FROM assessment_service.tentativas t
-           JOIN assessment_service.avaliacoes a ON t.avaliacao_id = a.codigo
-           WHERE t.id = $1`,
+          `SELECT t.funcionario_id, a.modulo_id, a.curso_id
+             FROM assessment_service.tentativas t
+             JOIN assessment_service.avaliacoes a ON t.avaliacao_id = a.codigo
+            WHERE t.id = $1`,
           [tentativa_id]
         );
 
         if (tentativaResult.rows.length > 0) {
-          const { funcionario_id, modulo_id } = tentativaResult.rows[0];
+          const { funcionario_id, modulo_id, curso_id } = tentativaResult.rows[0];
 
           if (modulo_id) {
-            // Buscar inscricao_id
-            const inscricaoResult = await c.query(
-              `SELECT i.id as inscricao_id
-               FROM progress_service.inscricoes i
-               JOIN course_service.modulos m ON m.curso_id = i.curso_id
-               WHERE i.funcionario_id = $1 AND m.id = $2
-               LIMIT 1`,
-              [funcionario_id, modulo_id]
+            await syncProgressAfterModuleCompletion(
+              c,
+              funcionario_id,
+              modulo_id,
+              curso_id || null,
+              'review'
             );
-
-            if (inscricaoResult.rows.length > 0) {
-              const inscricao_id = inscricaoResult.rows[0].inscricao_id;
-
-              // Atualizar data_conclusao diretamente no banco
-              const updateResult = await c.query(
-                `UPDATE progress_service.progresso_modulos 
-                 SET data_conclusao = NOW(),
-                     tempo_gasto = EXTRACT(EPOCH FROM (NOW() - data_inicio))::integer,
-                     atualizado_em = NOW()
-                 WHERE inscricao_id = $1 
-                   AND modulo_id = $2 
-                   AND data_conclusao IS NULL
-                 RETURNING id`,
-                [inscricao_id, modulo_id]
-              );
-
-              if (updateResult.rows.length > 0) {
-                console.log(`✅ Módulo ${modulo_id} concluído automaticamente após aprovação na revisão`);
-              } else {
-                console.warn(`⚠️ Módulo ${modulo_id} já estava concluído ou não foi iniciado`);
-              }
-            } else {
-              console.warn('⚠️ Inscrição não encontrada para completar módulo');
-            }
           } else {
-            console.warn('⚠️ Avaliação não possui modulo_id associado');
+            console.warn('⚠️ Avaliação não possui módulo associado; não foi possível sincronizar progresso');
           }
         }
       } catch (error) {
-        console.error('❌ Erro ao completar módulo automaticamente após revisão:', error);
-        // Não propagar erro - avaliação já foi aprovada com sucesso
+        console.error('❌ Erro ao sincronizar progresso após aprovação na revisão:', error);
       }
     }
 

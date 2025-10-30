@@ -21,7 +21,7 @@ export async function listDissertativeHandler(req: Request, res: Response) {
       });
     }
     
-    if (attempt.status !== 'PENDENTE_REVISAO') {
+    if (attempt.status !== 'AGUARDANDO_CORRECAO') {
       return res.status(409).json({ 
         erro: 'status_invalido',
         mensagem: 'Tentativa não está pendente de revisão' 
@@ -77,7 +77,7 @@ export async function reviewAttemptHandler(req: Request, res: Response) {
       });
     }
     
-    if (attempt.status !== 'PENDENTE_REVISAO') {
+    if (attempt.status !== 'AGUARDANDO_CORRECAO') {
       return res.status(409).json({ 
         erro: 'status_invalido',
         mensagem: 'Tentativa não está pendente de revisão' 

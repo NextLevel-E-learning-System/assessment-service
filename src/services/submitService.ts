@@ -65,7 +65,7 @@ export async function gradeSubmission(input: GradeInput) {
   const nota = totalPesoGeral > 0 ? Math.round(((pontosObtidosObjetivas / totalPesoGeral) * 100) * 100) / 100 : 0;
   const notaMin = assessment.nota_minima ? Number(assessment.nota_minima) : 0;
   const aprovado = !temDissertativa && nota >= notaMin;
-  const status = temDissertativa ? 'PENDENTE_REVISAO' : (aprovado ? 'APROVADO' : 'REPROVADO');
+  const status = temDissertativa ? 'AGUARDANDO_CORRECAO' : (aprovado ? 'APROVADO' : 'REPROVADO');
   
   await finalizeAttempt(attempt.id, nota, status);
   

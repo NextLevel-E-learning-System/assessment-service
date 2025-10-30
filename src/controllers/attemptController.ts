@@ -36,7 +36,7 @@ export async function startAttemptHandler(req: Request, res: Response, next: Nex
     
     // Regra de tentativas (sem recuperação)
     const attempts = await listAttemptsForUser(assessment.codigo, userId);
-    const finalizadas = attempts.filter(a => ['APROVADO', 'REPROVADO', 'PENDENTE_REVISAO', 'EXPIRADA'].includes(a.status));
+    const finalizadas = attempts.filter(a => ['APROVADO', 'REPROVADO', 'AGUARDANDO_CORRECAO', 'EXPIRADA'].includes(a.status));
     if (finalizadas.some(a => a.status === 'APROVADO')) throw new HttpError(409, 'already_passed');
     const tentativasPermitidas = assessment.tentativas_permitidas || 1;
     if (finalizadas.length >= tentativasPermitidas) throw new HttpError(409, 'attempt_limit_reached');
