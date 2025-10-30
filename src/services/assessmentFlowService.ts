@@ -691,7 +691,8 @@ export async function getAttemptForReview(tentativa_id: string) {
         enunciado: r.enunciado,
         peso: Number(r.peso),
         resposta_funcionario: r.resposta_funcionario,
-        pontuacao_atual: r.pontuacao ? Number(r.pontuacao) : undefined
+        pontuacao_atual: r.pontuacao !== null ? Number(r.pontuacao) : undefined,
+        feedback_atual: r.feedback || undefined
       }));
 
     const respostasObjetivas = respostasResult.rows
