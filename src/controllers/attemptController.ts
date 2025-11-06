@@ -166,7 +166,7 @@ export async function listAttemptsByAssessmentHandler(req: Request, res: Respons
 // ===============================================
 // OPERAÇÕES REMOVIDAS: UPDATE E DELETE
 // ===============================================
-// As tentativas são dados históricos dos alunos e não podem ser editadas ou removidas
+// As tentativas são dados históricos dos funcionários e não podem ser editadas ou removidas
 // As seguintes operações foram removidas intencionalmente:
 // - updateAttemptHandler
 // - deleteAttemptHandler

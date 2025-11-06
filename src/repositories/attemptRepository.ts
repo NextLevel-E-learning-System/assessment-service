@@ -126,7 +126,7 @@ export async function findAttemptsByAssessment(avaliacao_id: string): Promise<At
 }
 
 // TENTATIVAS NÃO PODEM SER EDITADAS OU DELETADAS
-// São dados históricos dos alunos e devem ser preservados
+// São dados históricos dos funcionários e devem ser preservados
 
 export async function countAttemptsByUser(funcionario_id: string, avaliacao_id: string): Promise<number> {
   return withClient(async c => {
