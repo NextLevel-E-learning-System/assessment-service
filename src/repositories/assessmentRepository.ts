@@ -135,45 +135,6 @@ export async function insertQuestion(q:NewQuestion): Promise<string>{
 	});
 }
 
-// Nova interface: Assessment com questões incluídas
-export interface AssessmentWithQuestions extends Assessment {
-  questoes: Question[];
-}
-
-// Buscar avaliação completa com todas as questões
-export async function findAssessmentWithQuestions(codigo: string): Promise<AssessmentWithQuestions | null> {
-  return withClient(async c => {
-    // 1. Buscar avaliação
-    const avaliacaoResult = await c.query(
-      `SELECT codigo, curso_id, titulo, tempo_limite, tentativas_permitidas, nota_minima, modulo_id, ativo, criado_em, atualizado_em
-       FROM ${TABLE_AVALIACOES} WHERE codigo = $1`, [codigo]);
-    
-    if (!avaliacaoResult.rows[0]) return null;
-    
-    const avaliacao = avaliacaoResult.rows[0];
-    
-    // 2. Buscar questões da avaliação
-    const questoesResult = await c.query(
-      `SELECT id, avaliacao_id as assessment_codigo, enunciado, tipo_questao as tipo, opcoes_resposta, resposta_correta, peso
-       FROM ${TABLE_QUESTOES} WHERE avaliacao_id = $1 ORDER BY criado_em`, [codigo]);
-    
-    const questoes = questoesResult.rows.map(row => ({
-      id: row.id,
-      assessment_codigo: row.assessment_codigo,
-      enunciado: row.enunciado,
-      tipo: row.tipo,
-      opcoes_resposta: row.opcoes_resposta || [],
-      resposta_correta: row.resposta_correta,
-      peso: Number(row.peso) || 1
-    }));
-    
-    return {
-      ...avaliacao,
-      questoes
-    };
-  });
-}
-
 // SIMPLIFICADO: Apenas questões sem alternatives artificiais
 export async function listQuestionsSimple(assessmentCodigo: string): Promise<Question[]> {
   return withClient(async c => {

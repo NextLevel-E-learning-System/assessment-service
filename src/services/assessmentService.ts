@@ -1,7 +1,5 @@
 import { 
   insertAssessment, 
-  findByCodigo, 
-  findAssessmentWithQuestions,
   updateAssessmentDb,
   deleteAssessmentDb,
   listAssessmentsByCourse,
@@ -25,12 +23,6 @@ export async function createAssessment(d: NewAssessment) {
     }
     throw err;
   }
-}
-
-export async function getAssessment(codigo: string) {
-  const a = await findByCodigo(codigo);
-  if (!a) throw new HttpError(404, 'nao_encontrado');
-  return a;
 }
 
 export async function listAssessments(curso_id?: string) {
@@ -59,13 +51,6 @@ export async function deleteAssessment(codigo: string) {
 export async function addQuestion(d: NewQuestion) {
   const id = await insertQuestion(d);
   return { id };
-}
-
-// Buscar avaliação completa com questões
-export async function getAssessmentWithQuestions(codigo: string) {
-  const result = await findAssessmentWithQuestions(codigo);
-  if (!result) throw new HttpError(404, 'nao_encontrado');
-  return result;
 }
 
 // Retorna questões simples (sem alternatives artificiais)

@@ -1,8 +1,6 @@
 import { Router } from 'express';
 import { 
   createAssessmentHandler, 
-  getAssessmentHandler, 
-  getAssessmentWithQuestionsHandler,
   getModuleAssessmentHandler,
   listAssessmentsHandler,
   updateAssessmentHandler,
@@ -17,7 +15,6 @@ import {
   submitCompleteAssessmentHandler,
   getAttemptForReviewHandler,
   finalizeReviewHandler,
-  getUserAssessmentHistoryHandler,
   getActiveAttemptHandler
 } from '../controllers/assessmentFlowController.js';
 import {
@@ -29,8 +26,6 @@ export const assessmentRouter = Router();
 // ===== GESTÃO DE AVALIAÇÕES =====
 assessmentRouter.post('/', createAssessmentHandler);
 assessmentRouter.get('/', listAssessmentsHandler);
-assessmentRouter.get('/:codigo', getAssessmentHandler);
-assessmentRouter.get('/:codigo/complete', getAssessmentWithQuestionsHandler); // NOVO: Avaliação + questões
 assessmentRouter.put('/:codigo', updateAssessmentHandler); 
 assessmentRouter.delete('/:codigo', deleteAssessmentHandler); 
 
@@ -43,17 +38,6 @@ assessmentRouter.delete('/:codigo/questions/:id', deleteQuestionHandler);
 // ===== FLUXOS CONSOLIDADOS v1.8.0 ⭐ =====
 // Buscar avaliação de um módulo (sem resposta correta nas questões)
 assessmentRouter.get('/module/:modulo_id/for-student', getModuleAssessmentHandler);
-
-// Buscar questões para preview (sem resposta correta) - NOVO
-assessmentRouter.get('/:codigo/questions/for-student', async (req, res, next) => {
-  try {
-    const { listQuestionsForStudent } = await import('../repositories/assessmentRepository.js');
-    const questoes = await listQuestionsForStudent(req.params.codigo);
-    res.json({ success: true, data: questoes });
-  } catch (e) {
-    next(e);
-  }
-});
 
 // Buscar tentativa ativa (em andamento)
 assessmentRouter.get('/:codigo/active-attempt', getActiveAttemptHandler);
@@ -98,9 +82,6 @@ assessmentRouter.get('/attempts/:id/review-complete', getAttemptForReviewHandler
 
 // Finaliza revisão aplicando todas as correções
 assessmentRouter.post('/attempts/:id/finalize-review', finalizeReviewHandler);
-
-// Histórico completo de tentativas
-assessmentRouter.get('/users/:funcionario_id/history', getUserAssessmentHistoryHandler);
 
 // Fila de correções pendentes
 assessmentRouter.get('/reviews/pending', listPendingReviewsHandler);

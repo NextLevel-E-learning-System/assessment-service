@@ -2,8 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { createAssessmentSchema, updateAssessmentSchema } from '../validation/assessmentSchemas.js';
 import { 
   createAssessment, 
-  getAssessment, 
-  getAssessmentWithQuestions,
   updateAssessment,
   deleteAssessment,
   listAssessments,
@@ -23,24 +21,6 @@ export async function createAssessmentHandler(req: Request, res: Response, next:
   try {
     const result = await createAssessment(parsed.data);
     res.status(201).json(result);
-  } catch (e) {
-    next(e);
-  }
-}
-
-export async function getAssessmentHandler(req: Request, res: Response, next: NextFunction) {
-  try {
-    const result = await getAssessment(req.params.codigo);
-    res.json(result);
-  } catch (e) {
-    next(e);
-  }
-}
-
-export async function getAssessmentWithQuestionsHandler(req: Request, res: Response, next: NextFunction) {
-  try {
-    const result = await getAssessmentWithQuestions(req.params.codigo);
-    res.json(result);
   } catch (e) {
     next(e);
   }
