@@ -856,12 +856,13 @@ export async function applyReviewAndFinalize(
       );
       
       if (tentativaData.rows[0]) {
-        const payload = { 
-          assessmentCode: assessment.codigo, 
-          courseId: assessment.curso_id, 
-          userId: tentativaData.rows[0].funcionario_id, 
-          score: notaFinal, 
-          passed: passou 
+        const payload = {
+          assessmentCode: assessment.codigo,
+          courseId: assessment.curso_id,
+          courseTitle: assessment.curso_titulo ?? assessment.curso_id,
+          userId: tentativaData.rows[0].funcionario_id,
+          score: notaFinal,
+          passed: passou
         };
         await publishEvent(passou ? 'assessment.passed.v1' : 'assessment.failed.v1', payload);
       }

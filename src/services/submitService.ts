@@ -70,12 +70,13 @@ export async function gradeSubmission(input: GradeInput) {
   await finalizeAttempt(attempt.id, nota, status);
   
   if (!temDissertativa) {
-    const payload = { 
-      assessmentCode: assessment.codigo, 
-      courseId: assessment.curso_id, 
-      userId: input.userId, 
-      score: nota, 
-      passed: aprovado 
+    const payload = {
+      assessmentCode: assessment.codigo,
+      courseId: assessment.curso_id,
+      courseTitle: assessment.curso_titulo ?? assessment.curso_id,
+      userId: input.userId,
+      score: nota,
+      passed: aprovado
     };
     await publishEvent(aprovado ? 'assessment.passed.v1' : 'assessment.failed.v1', payload);
   }

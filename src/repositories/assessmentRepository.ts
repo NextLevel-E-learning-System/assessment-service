@@ -11,10 +11,11 @@ export interface NewAssessment {
   modulo_id: string;
 }
 
-export interface Assessment extends NewAssessment { 
+export interface Assessment extends NewAssessment {
   ativo: boolean;
   criado_em: Date;
   atualizado_em: Date;
+  curso_titulo?: string;
 }
 
 export interface UpdateAssessmentData {
@@ -44,8 +45,22 @@ export async function insertAssessment(d: NewAssessment) {
 export async function findByCodigo(codigo: string): Promise<Assessment | null> {
   return withClient(async c => {
     const r = await c.query(
-      `SELECT codigo, curso_id, titulo, tempo_limite, tentativas_permitidas, nota_minima, modulo_id, ativo, criado_em, atualizado_em
-       FROM ${TABLE_AVALIACOES} WHERE codigo = $1`, [codigo]);
+      `SELECT a.codigo,
+              a.curso_id,
+              a.titulo,
+              a.tempo_limite,
+              a.tentativas_permitidas,
+              a.nota_minima,
+              a.modulo_id,
+              a.ativo,
+              a.criado_em,
+              a.atualizado_em,
+              c.titulo AS curso_titulo
+         FROM ${TABLE_AVALIACOES} a
+         LEFT JOIN course_service.cursos c ON c.codigo = a.curso_id
+        WHERE a.codigo = $1`,
+      [codigo]
+    );
     return r.rows[0] || null;
   });
 }

@@ -97,12 +97,13 @@ export async function reviewAttemptHandler(req: Request, res: Response) {
       
       const assessment = await findByCodigo(final.avaliacao_id);
       if (assessment) {
-        const payload = { 
-          assessmentCode: assessment.codigo, 
-          courseId: assessment.curso_id, 
-          userId: final.funcionario_id, 
-          score: final.nota, 
-          passed: final.aprovado 
+        const payload = {
+          assessmentCode: assessment.codigo,
+          courseId: assessment.curso_id,
+          courseTitle: assessment.curso_titulo ?? assessment.curso_id,
+          userId: final.funcionario_id,
+          score: final.nota,
+          passed: final.aprovado
         };
         await publishEvent(final.aprovado ? 'assessment.passed.v1' : 'assessment.failed.v1', payload);
       }
