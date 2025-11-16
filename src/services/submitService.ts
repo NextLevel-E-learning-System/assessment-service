@@ -1,7 +1,7 @@
 import { findByCodigo, listQuestionsSimple } from '../repositories/assessmentRepository.js';
-import { publishEvent } from '../events/publisher.js';
 import { findAttemptById, finalizeAttempt } from '../repositories/attemptRepository.js';
 import { upsertAnswer } from '../repositories/answerRepository.js';
+import { publishEvent } from '../config/rabbitmq.js';
 
 interface GradeInput { 
   codigo: string; 

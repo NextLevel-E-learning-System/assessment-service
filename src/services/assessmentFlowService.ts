@@ -5,6 +5,7 @@ import { findByCodigo, listQuestionsForStudent } from '../repositories/assessmen
 import * as attemptRepository from '../repositories/attemptRepository.js';
 import * as answerRepository from '../repositories/answerRepository.js';
 import { HttpError } from '../utils/httpError.js';
+import { publishEvent } from '../config/rabbitmq.js';
 
 // Interface para iniciar avaliação com dados completos
 export interface StartAssessmentResponse {
@@ -845,8 +846,6 @@ export async function applyReviewAndFinalize(
       }
     }
 
-    // 4. Publicar evento
-    const { publishEvent } = await import('../events/publisher.js');
     const { findByCodigo } = await import('../repositories/assessmentRepository.js');
     
     const assessment = await findByCodigo(avaliacao_id);

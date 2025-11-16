@@ -7,6 +7,7 @@ import {
   listPendingReviews
 } from '../repositories/reviewRepository.js';
 import { findAttemptById } from '../repositories/attemptRepository.js';
+import { publishEvent } from '../config/rabbitmq.js';
 
 // GET /assessments/v1/attempts/:attemptId/dissertative
 export async function listDissertativeHandler(req: Request, res: Response) {
@@ -92,7 +93,6 @@ export async function reviewAttemptHandler(req: Request, res: Response) {
     
     if (final) {
       // Publicar evento após correção dissertativa completa
-      const { publishEvent } = await import('../events/publisher.js');
       const { findByCodigo } = await import('../repositories/assessmentRepository.js');
       
       const assessment = await findByCodigo(final.avaliacao_id);
